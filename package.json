@@ -1,0 +1,13 @@
+{
+  "name": "pedidos-po",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP de gestión de pedidos para fabricación de sofás.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

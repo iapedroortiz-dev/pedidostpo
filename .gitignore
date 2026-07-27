@@ -1,0 +1,15 @@
+# Dependencias y archivos locales
+node_modules/
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Excel de catálogo y temporales de Office
+*.xlsx
+*.xls
+~$*
+
+# Registros y sistema
+*.log
+.DS_Store

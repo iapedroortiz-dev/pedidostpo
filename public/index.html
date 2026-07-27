@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111214" />
+    <title>Pedidos PO | Gestión de pedidos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#dashboard" aria-label="Pedidos PO, inicio"><img class="brand-logo" src="/assets/logo.png" alt="Logo de la empresa" onerror="this.hidden=true;this.nextElementSibling.hidden=false" /><span class="brand-mark" hidden>PO</span><span>pedidos<span class="brand-accent">.</span></span></a>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Contraer menú" title="Contraer menú"><span>‹</span></button>
+        <nav class="nav" aria-label="Navegación principal">
+          <button class="nav-link active" data-view="dashboard"><span>◫</span>Vista general</button>
+          <button class="nav-link" data-view="new-order"><span>＋</span>Nuevo pedido</button>
+          <button class="nav-link" data-view="orders"><span>☷</span>Recepción de pedidos</button>
+          <button class="nav-link" data-view="catalog"><span>◇</span>Catálogo</button>
+        </nav>
+        <div class="sidebar-foot"><div class="avatar">MP</div><div><strong>María Pérez</strong><small>Departamento pedidos</small></div><button class="more">•••</button></div>
+      </aside>
+      <main class="main">
+        <header class="topbar"><button class="mobile-menu" aria-label="Abrir menú">☰</button><div><p class="eyebrow" id="page-kicker">OPERACIONES</p><h1 id="page-title">Vista general</h1></div><div class="top-actions"><span class="live-dot">Catálogo activo</span><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Activar modo claro" title="Cambiar tema"><span aria-hidden="true">☼</span><span class="theme-toggle-label">Claro</span></button><button class="button primary quick-new">+ Nuevo pedido</button></div></header>
+
+        <section id="dashboard" class="view active">
+          <div class="welcome"><div><p class="eyebrow">LUNES, 27 DE JULIO</p><h2>Buenos días, María.</h2><p>Controla el flujo de pedidos de un vistazo.</p></div><button class="button primary quick-new">Crear pedido <span>→</span></button></div>
+          <div class="metric-grid"><article class="metric-card"><span class="metric-icon moss">↗</span><p>Pedidos recibidos</p><strong id="metric-total">0</strong><small>En este MVP</small></article><article class="metric-card"><span class="metric-icon orange">◷</span><p>Pendientes de revisar</p><strong id="metric-pending">0</strong><small>Requieren atención</small></article><article class="metric-card"><span class="metric-icon blue">✓</span><p>Listos para fabricar</p><strong id="metric-ready">0</strong><small>Confirmados</small></article></div>
+          <div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h3>Pedidos recientes</h3><p>Últimos pedidos registrados</p></div><button class="text-button" data-go="orders">Ver todos →</button></div><div id="recent-orders" class="recent-list"></div></section><section class="panel catalog-status"><div class="catalog-icon">⌁</div><p class="eyebrow">CATÁLOGO DE PRODUCTO</p><h3 id="catalog-count">Cargando catálogo…</h3><p id="catalog-source">Sincronizando archivo Excel</p><button class="text-button" data-go="catalog">Gestionar catálogo →</button></section></div>
+        </section>
+
+        <section id="new-order" class="view">
+          <div class="section-intro"><div><p class="eyebrow">GENERACIÓN</p><h2>Nuevo pedido</h2><p>Completa los datos y configura el sofá por módulos.</p></div><span class="step-pill">Borrador</span></div>
+          <form id="order-form" class="order-layout">
+            <div class="form-column"><section class="panel form-panel"><div class="panel-head"><div><h3>Datos del cliente</h3><p>Información básica para identificar el pedido.</p></div></div><div class="field-grid"><label>Código de cliente<input required name="clientCode" placeholder="Ej. CL-0482" /></label><label>Nombre del cliente<input required name="clientName" placeholder="Nombre o razón social" /></label><label>Fecha del pedido<input required type="date" name="orderDate" /></label></div></section>
+            <section class="panel form-panel"><div class="panel-head"><div><h3>Modelo</h3><p>Elige la colección que va a configurar el vendedor.</p></div></div><div id="model-options" class="model-options" role="radiogroup"></div></section>
+            <section class="panel form-panel"><div class="panel-head"><div><h3>Módulos del sofá</h3><p>Selecciona las piezas y la orientación cuando sea necesaria.</p></div><span id="module-count" class="count-badge">0 módulos</span></div><div id="module-picker" class="module-picker empty-state">Selecciona un modelo para ver sus módulos.</div></section>
+            <section class="panel form-panel"><label class="notes-label"><span>Notas para el departamento de pedidos</span><textarea name="notes" placeholder="Ej. Tela, color, instrucciones especiales, plazo acordado…"></textarea></label></section>
+          </div>
+          <aside class="order-summary panel"><p class="eyebrow">RESUMEN</p><h3>Pedido en preparación</h3><div id="summary-client" class="summary-client">Aún no hay cliente</div><div id="summary-model" class="summary-model">Selecciona un modelo</div><div id="summary-lines" class="summary-lines"><p class="muted">Los módulos seleccionados aparecerán aquí.</p></div><div class="summary-footer"><span>Total de módulos</span><strong id="summary-total">0</strong></div><button class="button primary full" type="submit">Guardar pedido <span>→</span></button><p class="helper">Se registrará como pendiente de revisión.</p></aside>
+          </form>
+        </section>
+
+        <section id="orders" class="view"><div class="section-intro"><div><p class="eyebrow">DEPARTAMENTO DE PEDIDOS</p><h2>Recepción y consulta</h2><p>Revisa, confirma y prepara los pedidos para fabricación.</p></div><button class="button primary quick-new">+ Nuevo pedido</button></div><section class="panel orders-panel"><div class="filter-row"><label class="search-field">⌕ <input id="order-search" placeholder="Buscar por cliente, código o pedido" /></label><select id="status-filter"><option value="">Todos los estados</option><option value="Pendiente">Pendiente</option><option value="Confirmado">Confirmado</option><option value="En fabricación">En fabricación</option></select></div><div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Modelo</th><th>Fecha</th><th>Módulos</th><th>Estado</th><th></th></tr></thead><tbody id="orders-body"></tbody></table></div></section></section>
+
+        <section id="catalog" class="view"><div class="section-intro"><div><p class="eyebrow">PRODUCTO</p><h2>Catálogo de módulos</h2><p>La fuente de datos es el Excel de tarifa de Pedro Ortiz.</p></div><div class="top-actions"><input id="excel-file" type="file" accept=".xlsx" hidden /><button id="import-excel" class="button secondary">Importar Excel</button><button id="reload-catalog" class="button primary">Actualizar</button></div></div><section class="catalog-banner"><span>✓</span><div><strong id="catalog-banner-title">Catálogo vinculado al Excel</strong><p>Al editar la tarifa y desplegar el cambio, la aplicación leerá los textos actualizados automáticamente.</p></div></section><div id="catalog-grid" class="catalog-grid"></div></section>
+      </main>
+    </div>
+    <dialog id="order-dialog"><button class="dialog-close" aria-label="Cerrar">×</button><div id="dialog-content"></div></dialog><div id="toast" role="status"></div>
+    <script src="/app.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const toggle = document.getElementById('sidebar-toggle');
+        const setState = (collapsed) => {
+          document.body.classList.toggle('sidebar-collapsed', collapsed);
+          toggle.setAttribute('aria-label', collapsed ? 'Expandir menú' : 'Contraer menú');
+          toggle.setAttribute('title', collapsed ? 'Expandir menú' : 'Contraer menú');
+          localStorage.setItem('po-sidebar-collapsed', String(collapsed));
+        };
+        setState(localStorage.getItem('po-sidebar-collapsed') === 'true');
+        toggle.addEventListener('click', () => setState(!document.body.classList.contains('sidebar-collapsed')));
+      });
+    </script>
+  </body>
+</html>
