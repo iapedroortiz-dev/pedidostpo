@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "supabase": "^2.109.1"
   }
 }
