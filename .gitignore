@@ -13,3 +13,6 @@ node_modules/
 # Registros y sistema
 *.log
 .DS_Store
+
+# Salida de compilación de Next.js
+.next/
