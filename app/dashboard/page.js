@@ -11,11 +11,9 @@ const roleLabels = {
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-const userId = data?.claims?.sub;
+  const userId = data?.claims?.sub;
 
-if (!userId) {
-  redirect('/login');
-}
+  if (!userId) redirect('/login');
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -23,9 +21,7 @@ if (!userId) {
     .eq('id', userId)
     .single();
 
-  if (!profile?.active) {
-    redirect('/login?error=Usuario%20sin%20acceso%20activo.');
-  }
+  if (!profile?.active) redirect('/login?error=Usuario%20sin%20acceso%20activo.');
 
   return (
     <main className="dashboard-page">
@@ -39,18 +35,15 @@ if (!userId) {
         </div>
 
         <form action={logout}>
-          <button className="secondary-button" type="submit">
-            Cerrar sesión
-          </button>
+          <button className="secondary-button" type="submit">Cerrar sesión</button>
         </form>
       </section>
 
       <section className="next-step-card">
-        <h2>Acceso protegido correctamente</h2>
-        <p>
-          El siguiente paso será migrar los pedidos y el catálogo a Supabase
-          respetando los permisos de tu rol.
-        </p>
+        <h2>Operaciones de pedidos</h2>
+        <p>Accede a la bandeja de pedidos según los permisos asignados a tu rol.</p>
+        <a className="secondary-button dashboard-link" href="/pedidos">Ir a pedidos</a>
+        {profile.role === 'admin' ? <a className="secondary-button dashboard-link" href="/catalog">Gestionar catálogo</a> : null}
       </section>
     </main>
   );
