@@ -1,26 +1,57 @@
-# Pedidos PO — MVP
+# Pedidos PO
 
-Aplicación web ligera para estandarizar pedidos de sofás por módulos. Incluye la creación por parte de ventas y la recepción/consulta por parte del departamento de pedidos.
+Aplicación interna para crear y gestionar pedidos de sofás por módulos.
+
+## Stack
+
+- Next.js para la aplicación web.
+- Supabase para autenticación, base de datos, políticas RLS y almacenamiento privado de tarifas.
+- Vercel para el despliegue desde GitHub.
 
 ## Arranque local
 
 ```powershell
 npm install
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Abrir `http://localhost:3000`.
+Configura los valores de `.env.local` sin incluirlos nunca en Git:
 
-## Catálogo desde Excel
+```text
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+```
 
-El archivo `TARIFA NACIONAL PEDRO ORTIZ - 2026.xlsx` es la fuente del catálogo. La aplicación lo interpreta al solicitar `/api/catalog`, sin convertirlo a un listado manual: los textos de modelos, módulos, mecanismo y la necesidad de orientación Izq./Der. provienen directamente de sus columnas B, C y D.
+## Catálogo
 
-- En local, guarda los cambios en ese Excel: la aplicación los detecta al volver a la pestaña o, como máximo, en 15 segundos. El botón **Actualizar** permite forzar la lectura al momento.
-- En Vercel, sube el Excel actualizado al repositorio y despliega: la siguiente carga leerá ese archivo actualizado.
-- **Importar Excel** permite revisar otro archivo de tarifa en la sesión actual, sin sobrescribir el archivo original.
+Un administrador importa los archivos Excel desde `/catalog`. El original se guarda en el bucket privado `catalog-source` de Supabase y cada carga genera una versión de catálogo en borrador. Solo una versión puede estar publicada.
 
-El Excel debe mantener el patrón actual: una fila de modelo con `Opcion` en la columna C, seguida de sus módulos.
+Los archivos Excel no se suben al repositorio. Las migraciones y la lógica de importación sí se versionan en Git.
 
-## Alcance del MVP
+## Roles
 
-Los pedidos se guardan en `localStorage` del navegador para que el flujo pueda probarse sin infraestructura. En la siguiente iteración, se pueden reemplazar las funciones de lectura/escritura de pedidos por Supabase para compartirlos entre vendedores y el departamento de pedidos, manteniendo la misma interfaz.
+- `representante`: crea pedidos y consulta únicamente los propios.
+- `pedidos`: consulta todos los pedidos y avanza su estado.
+- `admin`: incluye las capacidades de pedidos y gestiona las versiones de catálogo.
+
+Los estados permitidos son: `pendiente` → `confirmado` → `en_fabricacion`.
+
+## Despliegue
+
+La rama `main` es la rama de producción en Vercel. Configura las tres variables de entorno anteriores únicamente en el entorno Production del proyecto Vercel.
+
+En Supabase, define la URL de producción en **Authentication → URL Configuration** y registra la URL de devolución de llamada de la aplicación. Para el dominio actual:
+
+```text
+https://pedidostpo.vercel.app
+https://pedidostpo.vercel.app/auth/callback
+```
+
+Antes de fusionar una Pull Request, ejecuta:
+
+```powershell
+npm run build
+git diff --check
+```
