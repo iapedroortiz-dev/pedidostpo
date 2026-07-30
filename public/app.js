@@ -2,7 +2,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = { catalog: null, selectedModelId: null, lines: [], activeSides: {}, activeVariants: {}, orders: JSON.parse(localStorage.getItem('po-orders') || '[]') };
 function setTheme(theme){ const isLight=theme==='light'; document.body.classList.toggle('light-theme',isLight); localStorage.setItem('po-theme',isLight?'light':'dark'); const button=$('#theme-toggle'); if(button){button.setAttribute('aria-label',isLight?'Activar modo oscuro':'Activar modo claro');button.querySelector('[aria-hidden]').textContent=isLight?'◐':'☼';button.querySelector('.theme-toggle-label').textContent=isLight?'Oscuro':'Claro';} }
-document.addEventListener('DOMContentLoaded',()=>{setTheme(localStorage.getItem('po-theme')||'dark');$('#theme-toggle').addEventListener('click',()=>setTheme(document.body.classList.contains('light-theme')?'dark':'light'));});
+document.addEventListener('DOMContentLoaded',()=>{setTheme(localStorage.getItem('po-theme')||'light');$('#theme-toggle').addEventListener('click',()=>setTheme(document.body.classList.contains('light-theme')?'dark':'light'));});
 const pageInfo = { dashboard:['OPERACIONES','Vista general'], 'new-order':['GENERACIÓN','Nuevo pedido'], orders:['DEPARTAMENTO DE PEDIDOS','Recepción y consulta'], catalog:['PRODUCTO','Catálogo'] };
 const esc = (value='') => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const formatDate = (value) => value ? new Intl.DateTimeFormat('es-ES',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${value}T12:00:00`)) : '—';

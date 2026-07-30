@@ -16,4 +16,4 @@ http.createServer(async (req, res) => {
   const filePath = path.join(publicDir, path.normalize(requestPath));
   if (!filePath.startsWith(publicDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return send(res, 404, 'No encontrado');
   send(res, 200, fs.readFileSync(filePath), { 'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream' });
-}).listen(process.env.PORT || 3000, () => console.log('Pedidos PO disponible en http://localhost:3000'));
+}).listen(process.env.PEDIDOS_PO_PORT || process.env.PORT || 3000, () => console.log(`Pedidos PO disponible en http://localhost:${process.env.PEDIDOS_PO_PORT || process.env.PORT || 3000}`));
