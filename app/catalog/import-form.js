@@ -9,24 +9,23 @@ export default function ImportForm() {
 
   async function importCatalog(event) {
     event.preventDefault();
-    setStatus('Importando y validando el Excel…');
+    setStatus('Importando y validando el Excel...');
 
     const form = event.currentTarget;
     const response = await fetch('/api/catalog/import', {
       method: 'POST',
       body: new FormData(form)
     });
-
     const payload = await response.json();
 
     if (!response.ok) {
-      setStatus(payload.error || 'No se pudo importar el catálogo.');
+      setStatus(payload.error || 'No se pudo importar el catalogo.');
       return;
     }
 
     form.reset();
     setStatus(
-      `Versión "${payload.label}" creada en borrador con ${payload.modelCount} modelos.`
+      `Version "${payload.label}" creada en borrador con ${payload.modelCount} modelos y ${payload.itemCount} elementos.`
     );
     router.refresh();
   }
@@ -34,21 +33,21 @@ export default function ImportForm() {
   return (
     <section className="catalog-panel">
       <div>
-        <p className="eyebrow">IMPORTACIÓN PRIVADA</p>
+        <p className="eyebrow">IMPORTACION PRIVADA</p>
         <h2>Subir nueva tarifa</h2>
         <p>
-          El archivo se guarda en almacenamiento privado y genera una versión
-          en borrador; no se publica automáticamente.
+          El archivo se guarda en almacenamiento privado y genera una version
+          en borrador; no se publica automaticamente.
         </p>
       </div>
 
       <form className="catalog-form" onSubmit={importCatalog}>
         <label>
-          Nombre de la versión
+          Nombre de la version
           <input
             name="label"
             maxLength="120"
-            placeholder="Ej. Tarifa nacional 2026 — revisión julio"
+            placeholder="Ej. Tarifa nacional 2026 - revision julio"
           />
         </label>
 
