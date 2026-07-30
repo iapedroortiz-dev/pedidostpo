@@ -164,36 +164,20 @@ export async function POST(request) {
         throw modelError;
       }
 
-      for (const [moduleIndex, module] of model.modules.entries()) {
-        const { data: savedModule, error: moduleError } = await admin
-          .from('catalog_modules')
+      for (const [itemIndex, item] of model.items.entries()) {
+        const { error: itemError } = await admin
+          .from('catalog_items')
           .insert({
             catalog_model_id: savedModel.id,
-            name: module.name,
-            needs_side: module.needsSide,
-            display_order: moduleIndex + 1
-          })
-          .select('id')
-          .single();
+            code: item.code,
+            description: item.description,
+            category_option: item.categoryOption,
+            side_option: item.sideOption,
+            display_order: itemIndex + 1
+          });
 
-        if (moduleError) {
-          throw moduleError;
-        }
-
-        const variants = module.variants || [];
-
-        for (const [variantIndex, variant] of variants.entries()) {
-          const { error: variantError } = await admin
-            .from('catalog_module_variants')
-            .insert({
-              catalog_module_id: savedModule.id,
-              mechanism: variant.mechanism,
-              display_order: variantIndex + 1
-            });
-
-          if (variantError) {
-            throw variantError;
-          }
+        if (itemError) {
+          throw itemError;
         }
       }
     }
@@ -206,7 +190,11 @@ export async function POST(request) {
         catalog_version_id: catalogVersionId,
         label,
         source_file: originalFileName,
-        model_count: catalog.models.length
+        model_count: catalog.models.length,
+        item_count: catalog.models.reduce(
+          (total, model) => total + model.items.length,
+          0
+        )
       }
     });
 
@@ -215,7 +203,11 @@ export async function POST(request) {
         id: catalogVersionId,
         label,
         status: 'borrador',
-        modelCount: catalog.models.length
+        modelCount: catalog.models.length,
+        itemCount: catalog.models.reduce(
+          (total, model) => total + model.items.length,
+          0
+        )
       },
       { status: 201 }
     );
