@@ -44,6 +44,7 @@ export default async function DashboardPage() {
         <p>Accede a la bandeja de pedidos según los permisos asignados a tu rol.</p>
         <a className="secondary-button dashboard-link" href="/pedidos">Ir a pedidos</a>
         {profile.role === 'admin' ? <a className="secondary-button dashboard-link" href="/catalog">Gestionar catálogo</a> : null}
+        {profile.role === 'admin' ? <a className="secondary-button dashboard-link" href="/usuarios">Gestionar usuarios</a> : null}
       </section>
     </main>
   );
