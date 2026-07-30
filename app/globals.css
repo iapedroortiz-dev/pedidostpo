@@ -734,3 +734,45 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sistema visual operativo: verde Pedro Ortiz para toda la aplicación Next. */
+:root { background: #eef1ed; color: #1d2922; }
+body { background: #eef1ed; color: #1d2922; }
+.eyebrow { color: #147747; }
+.auth-card, .dashboard-card, .next-step-card, .catalog-panel, .orders-panel, .users-panel { border-color: #e1e8e2; box-shadow: 0 12px 32px rgb(19 79 45 / 8%); }
+.auth-form input, .catalog-form input, .order-form input, .order-form select, .order-form textarea, .order-module input, .order-module select, .user-create-form input, .user-create-form select, .user-role-form select { border-color: #c8d8cc; }
+.auth-form input:focus, .catalog-form input:focus, .order-form input:focus, .order-form select:focus, .order-form textarea:focus, .order-module input:focus, .order-module select:focus, .user-create-form input:focus, .user-create-form select:focus, .user-role-form select:focus { outline: 3px solid rgb(20 119 71 / 16%); border-color: #147747; }
+.auth-form button, .catalog-form button, .catalog-version-actions button, .primary-button { background: #147747; box-shadow: 0 8px 18px rgb(20 119 71 / 18%); }
+.auth-form button:hover, .catalog-form button:hover, .catalog-version-actions button:hover, .primary-button:hover { background: #0e653b; }
+.secondary-button, .dashboard-link { color: #146c41; background: #e5f3e9; }
+.catalog-back, .orders-back, .users-back { color: #147747; }
+.catalog-status, .catalog-success, .access-active, .status-publicado, .status-en_fabricacion { color: #17633a; background: #e3f5e8; }
+.status-confirmado, .order-tag, .orders-count, .users-count, .user-role-readonly { color: #146c41; background: #e5f3e9; }
+.catalog-badge, .order-tag, .orders-count, .order-status, .user-access, .users-count, .user-role-readonly { border-radius: 999px; }
+.catalog-model-details, .order-catalog-details { border-color: #dfe8e1; }
+.catalog-items-table th { color: #244334; background: #f4f8f5; }
+.catalog-version, .order-row, .user-row { border-color: #e6ece7; }
+.dashboard-card { color: #fff; border: 0; background: linear-gradient(135deg, #0e5935, #218454); }
+.dashboard-card .eyebrow { color: #b9ebc9; }
+.dashboard-card p { color: #e0f4e6; }
+.next-step-card { border: 0; background: #fff; }
+
+/* Navegación de la aplicación autenticada. */
+.app-frame { min-height: 100vh; display: flex; background: #eef1ed; }
+.app-sidebar { position: sticky; top: 0; width: 244px; height: 100vh; flex: 0 0 auto; display: flex; flex-direction: column; padding: 28px 16px 18px; color: #eaf3ed; background: linear-gradient(160deg, #192b20, #0d1711); box-shadow: 12px 0 32px rgb(20 61 35 / 10%); transition: width 180ms ease, padding 180ms ease; }
+.app-content { min-width: 0; flex: 1; }
+.app-brand { display: flex; align-items: center; gap: 9px; padding: 0 8px; font-size: 1.25rem; letter-spacing: -0.06em; white-space: nowrap; overflow: hidden; }
+.app-brand-mark { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: #12321e; background: #8bddaa; font-size: 0.67rem; font-weight: 800; letter-spacing: -0.04em; }
+.sidebar-collapse { position: absolute; z-index: 1; top: 32px; right: -14px; display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #d9e5dc; border-radius: 999px; color: #147747; background: #fff; box-shadow: 0 2px 8px rgb(16 46 29 / 16%); cursor: pointer; font-size: 1.5rem; line-height: 1; transition: transform 180ms ease; }
+.app-nav { display: grid; gap: 6px; margin-top: 48px; }
+.app-nav-link { position: relative; display: flex; align-items: center; gap: 13px; min-height: 43px; padding: 0 12px; border-radius: 10px; color: #b9c8bd; text-decoration: none; font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.app-nav-link > span:first-child { width: 20px; flex: 0 0 20px; text-align: center; font-size: 1.05rem; }
+.app-nav-link:hover, .app-nav-link.active { color: #fff; background: #2b4936; }
+.app-nav-link.active::before { content: ''; position: absolute; left: -16px; top: 9px; width: 4px; height: 25px; border-radius: 0 4px 4px 0; background: #62d58c; }
+.app-sidebar-user { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 17px 8px 0; border-top: 1px solid #2b4032; white-space: nowrap; overflow: hidden; }
+.app-sidebar-user > span { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #dff8e7; background: #355641; font-size: 0.68rem; font-weight: 800; }
+.app-sidebar-user strong, .app-sidebar-user small { display: block; overflow: hidden; text-overflow: ellipsis; }.app-sidebar-user strong { font-size: 0.75rem; }.app-sidebar-user small { margin-top: 3px; color: #9eb4a4; font-size: 0.67rem; }
+.app-frame.is-collapsed .app-sidebar { width: 74px; padding-inline: 10px; }.app-frame.is-collapsed .app-brand { padding: 0; justify-content: center; }.app-frame.is-collapsed .app-brand strong, .app-frame.is-collapsed .app-nav-link > span:last-child, .app-frame.is-collapsed .app-sidebar-user > div { display: none; }.app-frame.is-collapsed .app-nav-link { justify-content: center; padding: 0; }.app-frame.is-collapsed .sidebar-collapse { transform: rotate(180deg); }.app-frame.is-collapsed .app-sidebar-user { justify-content: center; padding-inline: 0; }
+.app-frame .dashboard-link { display: none; }
+
+@media (max-width: 700px) { .app-sidebar { width: 72px; padding-inline: 10px; }.app-brand { padding: 0; justify-content: center; }.app-brand strong, .app-nav-link > span:last-child, .app-sidebar-user > div, .sidebar-collapse { display: none; }.app-nav-link { justify-content: center; padding: 0; }.app-sidebar-user { justify-content: center; padding-inline: 0; }.app-content { width: calc(100% - 72px); } }
