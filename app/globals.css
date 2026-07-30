@@ -492,3 +492,154 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+.users-page {
+  width: min(100% - 48px, 1100px);
+  margin: 0 auto;
+  padding: 48px 0;
+}
+
+.users-header,
+.users-list-heading,
+.user-row,
+.user-row-actions,
+.user-role-form {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.users-header {
+  margin-bottom: 28px;
+}
+
+.users-header > div > p:last-child,
+.users-help,
+.user-row p,
+.user-row small {
+  color: #5e6b80;
+  line-height: 1.45;
+}
+
+.users-back {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.users-panel {
+  margin-top: 20px;
+  padding: 28px 32px;
+  background: #fff;
+  border: 1px solid #dce3ed;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgb(26 43 66 / 8%);
+}
+
+.users-panel h2 {
+  margin-top: 4px;
+}
+
+.user-create-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.user-create-form label {
+  display: grid;
+  gap: 8px;
+  color: #344055;
+  font-weight: 600;
+}
+
+.user-create-form input,
+.user-create-form select,
+.user-role-form select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #b9c4d4;
+  border-radius: 8px;
+  color: #172033;
+  background: #fff;
+}
+
+.users-list-heading {
+  margin-bottom: 20px;
+}
+
+.users-list {
+  display: grid;
+  gap: 10px;
+}
+
+.user-row {
+  padding: 18px 0;
+  border-top: 1px solid #e4e9f0;
+}
+
+.user-row p {
+  margin: 6px 0;
+}
+
+.user-row small {
+  display: block;
+}
+
+.user-row-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.user-access,
+.users-count,
+.user-role-readonly {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.users-count,
+.user-role-readonly {
+  color: #1f4fba;
+  background: #eaf0ff;
+}
+
+.access-active {
+  color: #17633a;
+  background: #e4f7eb;
+}
+
+.access-inactive {
+  color: #5e6b80;
+  background: #edf1f5;
+}
+
+@media (max-width: 760px) {
+  .users-page {
+    width: min(100% - 32px, 1100px);
+    padding: 32px 0;
+  }
+
+  .users-header,
+  .users-list-heading,
+  .user-row,
+  .user-row-actions,
+  .user-role-form {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .users-panel {
+    padding: 24px;
+  }
+
+  .user-create-form {
+    grid-template-columns: 1fr;
+  }
+}
