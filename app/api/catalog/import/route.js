@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createServerClient } from '../../../../lib/supabase/server';
 import { createAdminClient } from '../../../../lib/supabase/admin';
 
-const { catalogFromBuffer } = require('../../../../lib/catalog');
+const { catalogAndCustomersFromBuffer } = require('../../../../lib/catalog');
 
 export const runtime = 'nodejs';
 
@@ -76,7 +76,7 @@ export async function POST(request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const catalog = await catalogFromBuffer(buffer, originalFileName);
+    const catalog = await catalogAndCustomersFromBuffer(buffer, originalFileName);
 
     if (!catalog.models?.length) {
       return errorResponse('El Excel no contiene modelos válidos.');
@@ -92,6 +92,37 @@ export async function POST(request) {
 
     admin = createAdminClient();
 
+    const representativeEmails = [
+      ...new Set(
+        catalog.customers
+          .map((customer) => customer.representativeEmail)
+          .filter(Boolean)
+      )
+    ];
+    const { data: representatives, error: representativesError } = representativeEmails.length
+      ? await admin
+          .from('profiles')
+          .select('id, email')
+          .in('email', representativeEmails)
+      : { data: [], error: null };
+    if (representativesError) throw representativesError;
+
+    const representativeByEmail = new Map(
+      (representatives || []).map((representative) => [
+        String(representative.email || '').toLocaleLowerCase('es-ES'),
+        representative.id
+      ])
+    );
+    const unknownEmails = representativeEmails.filter(
+      (email) => !representativeByEmail.has(email)
+    );
+    if (unknownEmails.length) {
+      return errorResponse(
+        `No existe un usuario para: ${unknownEmails.slice(0, 3).join(', ')}${unknownEmails.length > 3 ? '...' : ''}.`,
+        422
+      );
+    }
+
     const { data: existingVersion } = await admin
       .from('catalog_versions')
       .select('id')
@@ -104,6 +135,21 @@ export async function POST(request) {
         409
       );
     }
+
+    const { error: customersError } = await admin
+      .from('customers')
+      .upsert(
+        catalog.customers.map((customer) => ({
+          client_code: customer.clientCode,
+          trade_name: customer.tradeName,
+          representative_id: customer.representativeEmail
+            ? representativeByEmail.get(customer.representativeEmail)
+            : null,
+          active: true
+        })),
+        { onConflict: 'client_code' }
+      );
+    if (customersError) throw customersError;
 
     storagePath = `imports/${new Date().toISOString().slice(0, 10)}/${
       crypto.randomUUID()
@@ -191,6 +237,7 @@ export async function POST(request) {
         label,
         source_file: originalFileName,
         model_count: catalog.models.length,
+        customer_count: catalog.customers.length,
         item_count: catalog.models.reduce(
           (total, model) => total + model.items.length,
           0
@@ -204,6 +251,7 @@ export async function POST(request) {
         label,
         status: 'borrador',
         modelCount: catalog.models.length,
+        customerCount: catalog.customers.length,
         itemCount: catalog.models.reduce(
           (total, model) => total + model.items.length,
           0

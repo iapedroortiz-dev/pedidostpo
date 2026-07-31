@@ -25,7 +25,7 @@ export default function ImportForm() {
 
     form.reset();
     setStatus(
-      `Version "${payload.label}" creada en borrador con ${payload.modelCount} modelos y ${payload.itemCount} elementos.`
+      `Version "${payload.label}" creada en borrador con ${payload.modelCount} modelos, ${payload.itemCount} elementos y ${payload.customerCount} clientes actualizados.`
     );
     router.refresh();
   }

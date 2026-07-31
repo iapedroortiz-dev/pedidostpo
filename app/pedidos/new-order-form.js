@@ -17,7 +17,7 @@ function emptyLegacySelection(module) {
   };
 }
 
-export default function NewOrderForm({ models, action, catalogFormat }) {
+export default function NewOrderForm({ models, customers, action, catalogFormat }) {
   const [modelId, setModelId] = useState(models[0]?.id || '');
   const [lines, setLines] = useState({});
   const [legacySelections, setLegacySelections] = useState({});
@@ -87,8 +87,7 @@ export default function NewOrderForm({ models, action, catalogFormat }) {
   return (
     <form action={action} className="order-form">
       <div className="order-form-grid">
-        <label>Codigo de cliente<input name="clientCode" maxLength="120" required /></label>
-        <label>Cliente<input name="clientName" maxLength="200" required /></label>
+        <label className="order-customer-select">Cliente<select name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
         <label>Fecha del pedido<input name="orderDate" type="date" defaultValue={today()} required /></label>
         <label>Modelo<select name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
       </div>
