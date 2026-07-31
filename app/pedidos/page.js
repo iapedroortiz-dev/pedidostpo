@@ -125,6 +125,13 @@ export default async function OrdersPage({ searchParams }) {
   const canCreate = ['representante', 'admin'].includes(profile.role);
   const canManage = ['pedidos', 'admin'].includes(profile.role);
   const catalog = canCreate ? await publishedCatalog(supabase) : null;
+  const { data: customers } = canCreate
+    ? await supabase
+        .from('customers')
+        .select('id, client_code, trade_name')
+        .eq('active', true)
+        .order('trade_name')
+    : { data: [] };
   const { data: orders } = await supabase
     .from('orders')
     .select('id, order_number, client_code, client_name, order_date, model_name, status, created_at, order_lines(quantity)')
@@ -145,7 +152,7 @@ export default async function OrdersPage({ searchParams }) {
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p className="catalog-success" role="status">{message}</p> : null}
 
-      {canCreate ? <section className="orders-panel"><p className="eyebrow">NUEVO PEDIDO</p><h2>Crear pedido</h2>{catalog?.models?.length ? <NewOrderForm models={catalog.models} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">No hay un catalogo publicado disponible para crear pedidos.</p>}</section> : null}
+      {canCreate ? <section className="orders-panel"><p className="eyebrow">NUEVO PEDIDO</p><h2>Crear pedido</h2>{catalog?.models?.length && customers?.length ? <NewOrderForm models={catalog.models} customers={customers} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">{catalog?.models?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</section> : null}
 
       <section className="orders-panel">
         <div className="orders-list-heading"><div><p className="eyebrow">{canManage ? 'BANDEJA OPERATIVA' : 'MIS PEDIDOS'}</p><h2>{canManage ? 'Todos los pedidos' : 'Pedidos enviados'}</h2></div><span className="orders-count">{(orders || []).length}</span></div>

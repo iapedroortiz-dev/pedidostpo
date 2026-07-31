@@ -157,18 +157,27 @@ export async function createOrder(formData) {
     redirectWithError('No tienes permiso para crear pedidos.');
   }
 
-  const clientCode = String(formData.get('clientCode') || '').trim();
-  const clientName = String(formData.get('clientName') || '').trim();
+  const customerId = String(formData.get('customerId') || '').trim();
   const orderDate = String(formData.get('orderDate') || '').trim();
   const notes = String(formData.get('notes') || '').trim();
   const catalogModelId = String(formData.get('catalogModelId') || '').trim();
-  if (!clientCode || !clientName || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
-    redirectWithError('Completa el codigo, cliente y fecha del pedido.');
+  if (!customerId || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
+    redirectWithError('Completa el cliente y la fecha del pedido.');
   }
   if (!catalogModelId || notes.length > 2000) {
     redirectWithError('Los datos del pedido no son validos.');
   }
   const requestedLines = parseRequestedLines(formData);
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, client_code, trade_name')
+    .eq('id', customerId)
+    .eq('active', true)
+    .maybeSingle();
+  if (!customer) {
+    redirectWithError('El cliente seleccionado no esta disponible para tu usuario.');
+  }
 
   const { data: publishedVersion } = await supabase
     .from('catalog_versions')
@@ -213,8 +222,9 @@ export async function createOrder(formData) {
       catalog_version_id: publishedVersion.id,
       catalog_model_id: orderModelId,
       model_name: orderModelName,
-      client_code: clientCode,
-      client_name: clientName,
+      customer_id: customer.id,
+      client_code: customer.client_code,
+      client_name: customer.trade_name,
       order_date: orderDate,
       notes: notes || null,
       status: 'pendiente'
