@@ -40,13 +40,15 @@ function validPassword(password) {
 async function requireManageableUser(admin, userId) {
   const { data: targetProfile, error } = await admin
     .from('profiles')
-    .select('role')
+    .select('role, email, full_name')
     .eq('id', userId)
     .maybeSingle();
 
   if (error || !targetProfile || targetProfile.role === 'admin') {
     redirectWithError('Esta cuenta no se puede gestionar desde esta página.');
   }
+
+  return targetProfile;
 }
 
 export async function createManagedUser(formData) {
@@ -128,6 +130,58 @@ export async function updateManagedUserRole(formData) {
 
   revalidatePath('/usuarios');
   redirect('/usuarios?message=Rol%20actualizado%20correctamente.');
+}
+
+export async function updateManagedUserDetails(formData) {
+  const currentUserId = await requireAdmin();
+  const userId = String(formData.get('userId') || '').trim();
+  const fullName = String(formData.get('fullName') || '').trim();
+  const email = String(formData.get('email') || '').trim().toLowerCase();
+
+  if (!uuidPattern.test(userId) || !fullName || fullName.length > 120 || !emailPattern.test(email)) {
+    redirectWithError('Indica un nombre y correo electrónico válidos.');
+  }
+
+  if (userId === currentUserId) {
+    redirectWithError('Tu propia cuenta se gestiona desde el perfil de usuario.');
+  }
+
+  const admin = createAdminClient();
+  const targetProfile = await requireManageableUser(admin, userId);
+  const { data: duplicatedProfile, error: duplicateError } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .neq('id', userId)
+    .maybeSingle();
+
+  if (duplicateError || duplicatedProfile) {
+    redirectWithError('Ya existe una cuenta con ese correo electrónico.');
+  }
+
+  const authUpdates = {
+    user_metadata: { full_name: fullName }
+  };
+  if (targetProfile.email !== email) authUpdates.email = email;
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, authUpdates);
+  if (authError) {
+    console.error('Error actualizando datos de acceso:', authError);
+    redirectWithError('No se pudo actualizar el nombre o correo. Comprueba que el correo no exista ya.');
+  }
+
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({ full_name: fullName, email })
+    .eq('id', userId);
+
+  if (profileError) {
+    console.error('Error actualizando perfil:', profileError);
+    redirectWithError('Se actualizó el acceso, pero no se pudo sincronizar el perfil. Contacta con soporte.');
+  }
+
+  revalidatePath('/usuarios');
+  redirect('/usuarios?message=Nombre%20y%20correo%20actualizados%20correctamente.');
 }
 
 export async function setManagedUserActive(formData) {

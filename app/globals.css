@@ -594,7 +594,8 @@ h2 {
 .users-list-heading,
 .user-row,
 .user-row-actions,
-.user-role-form {
+.user-role-form,
+.user-details-form {
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -648,7 +649,8 @@ h2 {
 
 .user-create-form input,
 .user-create-form select,
-.user-role-form select {
+.user-role-form select,
+.user-details-form input {
   width: 100%;
   padding: 11px 12px;
   border: 1px solid #b9c4d4;
@@ -673,6 +675,29 @@ h2 {
 
 .user-row p {
   margin: 6px 0;
+}
+
+.user-details {
+  min-width: min(100%, 480px);
+}
+
+.user-details-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(210px, 1.2fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.user-details-form label {
+  display: grid;
+  gap: 6px;
+  color: #344055;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.user-details-form .secondary-button {
+  min-height: 42px;
 }
 
 .user-row small {
@@ -721,7 +746,8 @@ h2 {
   .users-list-heading,
   .user-row,
   .user-row-actions,
-  .user-role-form {
+  .user-role-form,
+  .user-details-form {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -732,6 +758,10 @@ h2 {
 
   .user-create-form {
     grid-template-columns: 1fr;
+  }
+
+  .user-details-form {
+    align-items: stretch;
   }
 }
 

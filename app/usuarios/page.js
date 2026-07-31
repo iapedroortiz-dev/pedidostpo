@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import {
   createManagedUser,
   setManagedUserActive,
+  updateManagedUserDetails,
   updateManagedUserRole
 } from './actions';
 import { createClient } from '../../lib/supabase/server';
@@ -90,9 +91,20 @@ export default async function UsersPage({ searchParams }) {
             const canManage = user.role !== 'admin' && user.id !== userId;
             return (
               <article className="user-row" key={user.id}>
-                <div>
-                  <strong>{user.full_name || 'Sin nombre'}</strong>
-                  <p>{user.email}</p>
+                <div className="user-details">
+                  {canManage ? (
+                    <form action={updateManagedUserDetails} className="user-details-form">
+                      <input type="hidden" name="userId" value={user.id} />
+                      <label>Nombre de usuario<input name="fullName" defaultValue={user.full_name || ''} maxLength="120" required /></label>
+                      <label>Email<input name="email" type="email" defaultValue={user.email} maxLength="320" required /></label>
+                      <button className="secondary-button" type="submit">Guardar datos</button>
+                    </form>
+                  ) : (
+                    <>
+                      <strong>{user.full_name || 'Sin nombre'}</strong>
+                      <p>{user.email}</p>
+                    </>
+                  )}
                   <small>Alta: {formatDate(user.created_at)}</small>
                 </div>
 
