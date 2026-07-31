@@ -52,7 +52,7 @@ function parseRequestedLines(formData) {
   return lines;
 }
 
-async function catalogLinesFromItems(supabase, catalogModelId, requestedLines) {
+async function catalogLinesFromItems(supabase, catalogVersionId, requestedLines) {
   const itemIds = [
     ...new Set(requestedLines.map((line) => String(line?.itemId || '')).filter(Boolean))
   ];
@@ -62,17 +62,24 @@ async function catalogLinesFromItems(supabase, catalogModelId, requestedLines) {
 
   const { data: items } = await supabase
     .from('catalog_items')
-    .select('id, code, description, category_option, side_option')
-    .eq('catalog_model_id', catalogModelId)
+    .select('id, catalog_model_id, code, description, category_option, side_option')
     .in('id', itemIds);
   const itemById = new Map((items || []).map((item) => [item.id, item]));
+  const modelIds = [...new Set((items || []).map((item) => item.catalog_model_id))];
+  const { data: models } = await supabase
+    .from('catalog_models')
+    .select('id, name')
+    .eq('catalog_version_id', catalogVersionId)
+    .in('id', modelIds);
+  const modelById = new Map((models || []).map((model) => [model.id, model]));
 
-  return requestedLines.map((line, index) => {
+  const lines = requestedLines.map((line, index) => {
     const item = itemById.get(String(line?.itemId || ''));
+    const itemModel = item && modelById.get(item.catalog_model_id);
     const quantity = Number(line?.quantity);
     const side = item ? normalizedSide(item.side_option) : undefined;
 
-    if (!item || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+    if (!item || !itemModel || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
       redirectWithError('Uno de los elementos seleccionados no es valido.');
     }
     if (side === undefined) {
@@ -89,6 +96,15 @@ async function catalogLinesFromItems(supabase, catalogModelId, requestedLines) {
       quantity
     };
   });
+
+  const orderedModelNames = [];
+  for (const line of requestedLines) {
+    const item = itemById.get(String(line?.itemId || ''));
+    const modelName = item && modelById.get(item.catalog_model_id)?.name;
+    if (modelName && !orderedModelNames.includes(modelName)) orderedModelNames.push(modelName);
+  }
+
+  return { lines, modelIds, modelNames: orderedModelNames };
 }
 
 async function catalogLinesFromLegacy(supabase, catalogModelId, requestedLines) {
@@ -161,32 +177,42 @@ export async function createOrder(formData) {
     .maybeSingle();
   if (!publishedVersion) redirectWithError('No hay un catalogo publicado disponible.');
 
-  const { data: catalogModel } = await supabase
-    .from('catalog_models')
-    .select('id, name')
-    .eq('id', catalogModelId)
-    .eq('catalog_version_id', publishedVersion.id)
-    .maybeSingle();
-  if (!catalogModel) {
-    redirectWithError('El modelo seleccionado ya no pertenece al catalogo publicado.');
-  }
-
   const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
   const usesLegacy = requestedLines.every((line) => String(line?.variantId || '').trim());
   if (!usesItems && !usesLegacy) {
     redirectWithError('La seleccion mezcla formatos de catalogo no validos.');
   }
-  const lines = usesItems
-    ? await catalogLinesFromItems(supabase, catalogModel.id, requestedLines)
-    : await catalogLinesFromLegacy(supabase, catalogModel.id, requestedLines);
+  let lines;
+  let orderModelId;
+  let orderModelName;
+
+  if (usesItems) {
+    const itemResult = await catalogLinesFromItems(supabase, publishedVersion.id, requestedLines);
+    lines = itemResult.lines;
+    orderModelId = itemResult.modelIds.length === 1 ? itemResult.modelIds[0] : null;
+    orderModelName = itemResult.modelNames.join(' + ');
+  } else {
+    const { data: catalogModel } = await supabase
+      .from('catalog_models')
+      .select('id, name')
+      .eq('id', catalogModelId)
+      .eq('catalog_version_id', publishedVersion.id)
+      .maybeSingle();
+    if (!catalogModel) {
+      redirectWithError('El modelo seleccionado ya no pertenece al catalogo publicado.');
+    }
+    lines = await catalogLinesFromLegacy(supabase, catalogModel.id, requestedLines);
+    orderModelId = catalogModel.id;
+    orderModelName = catalogModel.name;
+  }
 
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       representative_id: userId,
       catalog_version_id: publishedVersion.id,
-      catalog_model_id: catalogModel.id,
-      model_name: catalogModel.name,
+      catalog_model_id: orderModelId,
+      model_name: orderModelName,
       client_code: clientCode,
       client_name: clientName,
       order_date: orderDate,
