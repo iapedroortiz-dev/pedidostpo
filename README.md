@@ -1,3 +1,7 @@
+# Enlace a video: https://drive.google.com/file/d/11p_ExRZz2p4r0Iu-MFpldRCiawK0RfIn/view?usp=share_link
+# Enlace a slides: https://drive.google.com/file/d/1byfsO_mTJQMiKM_BEPLgdtGEdlHdGTGF/view?usp=share_link
+# Enlace repositorio Github: https://github.com/iapedroortiz-dev/pedidostpo.git
+
 # Pedidos TPO
 
 Aplicación interna para gestionar pedidos de sofás modulares, desde la selección de los artículos de catálogo hasta su envío a fabricación.
