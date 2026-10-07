@@ -1,4 +1,5 @@
 import { login } from './actions';
+import Link from 'next/link';
 
 export default async function LoginPage({ searchParams }) {
   const params = (await searchParams) || {};
@@ -46,6 +47,10 @@ export default async function LoginPage({ searchParams }) {
 
           <button type="submit">Entrar</button>
         </form>
+
+        <p className="auth-intro">
+          <Link href="/forgot-password">He olvidado mi contraseña</Link>
+        </p>
       </section>
     </main>
   );

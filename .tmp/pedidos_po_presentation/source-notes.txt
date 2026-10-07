@@ -1,0 +1,8 @@
+Fuentes internas del deck
+
+README.md: propósito, stack, roles y despliegue.
+package.json: dependencias y scripts.
+app/pedidos/actions.js y page.js: creación y avance de pedidos.
+app/api/catalog/import/route.js y lib/catalog.js: importación y validación de XLSX.
+lib/supabase/*.js y proxy.js: clientes, sesión y secretos.
+supabase/migrations/*.sql: modelo, RLS, funciones e invariantes.

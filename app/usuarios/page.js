@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
+  changeOwnPassword,
   createManagedUser,
+  resetManagedUserPassword,
   setManagedUserActive,
   updateManagedUserDetails,
   updateManagedUserRole
@@ -81,6 +83,19 @@ export default async function UsersPage({ searchParams }) {
       </section>
 
       <section className="users-panel">
+        <p className="eyebrow">MI CUENTA</p>
+        <h2>Cambiar mi contraseña</h2>
+        <p className="users-help">Usa al menos 12 caracteres e incluye letras y números.</p>
+
+        <form action={changeOwnPassword} className="user-password-form user-own-password-form">
+          <label>Contraseña actual<input name="currentPassword" type="password" autoComplete="current-password" required /></label>
+          <label>Nueva contraseña<input name="password" type="password" minLength="12" autoComplete="new-password" required /></label>
+          <label>Repetir contraseña<input name="passwordConfirmation" type="password" minLength="12" autoComplete="new-password" required /></label>
+          <button className="primary-button" type="submit">Actualizar contraseña</button>
+        </form>
+      </section>
+
+      <section className="users-panel">
         <div className="users-list-heading">
           <div><p className="eyebrow">CUENTAS</p><h2>Usuarios registrados</h2></div>
           <span className="users-count">{(users || []).length}</span>
@@ -131,6 +146,16 @@ export default async function UsersPage({ searchParams }) {
                           {user.active ? 'Desactivar' : 'Activar'}
                         </button>
                       </form>
+
+                      <details className="user-password-reset">
+                        <summary>Restablecer contraseña</summary>
+                        <form action={resetManagedUserPassword} className="user-password-form">
+                          <input type="hidden" name="userId" value={user.id} />
+                          <label>Nueva contraseña<input name="password" type="password" minLength="12" autoComplete="new-password" required /></label>
+                          <label>Repetir contraseña<input name="passwordConfirmation" type="password" minLength="12" autoComplete="new-password" required /></label>
+                          <button className="secondary-button" type="submit">Guardar contraseña</button>
+                        </form>
+                      </details>
                     </>
                   ) : (
                     <span className="user-role-readonly">{roleLabels[user.role] || user.role}</span>

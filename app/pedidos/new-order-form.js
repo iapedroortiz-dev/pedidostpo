@@ -10,6 +10,82 @@ function itemDetails(item) {
   return [item.categoryOption, item.sideOption].filter(Boolean).join(' - ');
 }
 
+function searchText(value) {
+  return String(value || '')
+    .toLocaleLowerCase('es-ES')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isOneToThreeSeatModuleWithArm(values) {
+  const text = values.map(searchText).join(' ');
+  return /(?:1|2|3)\s*pl/.test(text) && /c\s*\/\s*b/.test(text);
+}
+
+function isPouff(values) {
+  return /\bpouf{1,2}s?\b/.test(values.map(searchText).join(' '));
+}
+
+function isChaiselongue(values) {
+  return /\bchaise\s*longue\b|\bchaiselongue\b/.test(values.map(searchText).join(' '));
+}
+
+function isOneSeatTerminal(values) {
+  const text = values.map(searchText).join(' ');
+  return /1\s*pl/.test(text) && /\bterminal\b/.test(text);
+}
+
+function hasModuleDiagram(values) {
+  return isPouff(values) || isChaiselongue(values) || isOneSeatTerminal(values) || isOneToThreeSeatModuleWithArm(values);
+}
+
+function hasLeftArm(values) {
+  const text = values.map(searchText).join(' ');
+  return /(?:^|[\s(])(?:izquierda|izquierdo|izq\.?)(?:$|[\s).,-])/.test(text)
+    || /c\s*\/\s*b\s*[-.]?\s*(?:i|izq\.?)(?:$|[\s).,-])/.test(text)
+    || /(?:2|3)plcb(?:i|izq)\b/.test(text);
+}
+
+function hasRightArm(values) {
+  const text = values.map(searchText).join(' ');
+  return /(?:^|[\s(])(?:derecha|derecho|der\.?)(?:$|[\s).,-])/.test(text)
+    || /c\s*\/\s*b\s*[-.]?\s*(?:d|der\.?)(?:$|[\s).,-])/.test(text)
+    || /(?:2|3)plcb(?:d|der)\b/.test(text);
+}
+
+function ModuleDiagram({ values }) {
+  const text = values.map(searchText).join(' ');
+  const pouff = isPouff(values);
+  const chaiselongue = isChaiselongue(values);
+  const oneSeatTerminal = isOneSeatTerminal(values);
+  const leftArm = hasLeftArm(values);
+  const rightArm = hasRightArm(values);
+  const usesLeftBaseDiagram = chaiselongue || oneSeatTerminal;
+  const sideLabel = usesLeftBaseDiagram
+    ? rightArm ? 'derecho' : 'izquierdo'
+    : leftArm ? 'izquierdo' : 'derecho';
+  const isOneSeat = /1\s*pl/.test(text);
+  const source = pouff
+    ? '/assets/pouff.png'
+    : chaiselongue
+      ? '/assets/chaiselongue.png'
+      : oneSeatTerminal
+        ? '/assets/mod-1-pl-terminal.png'
+      : isOneSeat
+        ? '/assets/mod-1-pl-con-brazo.png'
+        : '/assets/mod-2-3-pl-con-brazo.png';
+  const label = pouff
+    ? 'Pouff'
+    : chaiselongue
+      ? `Chaiselongue con brazo ${sideLabel}`
+      : oneSeatTerminal
+        ? `Módulo de 1 plaza terminal ${sideLabel}`
+      : `Módulo de ${isOneSeat ? '1' : '2 o 3'} plazas con brazo ${sideLabel}`;
+  const shouldMirror = usesLeftBaseDiagram ? rightArm : leftArm && !pouff;
+
+  return <img className={`module-seat-arm-diagram${shouldMirror ? ' module-seat-arm-diagram-left' : ''}`} src={source} alt={label} title={label} />;
+}
+
 function emptyLegacySelection(module) {
   return {
     variantId: module.variants[0]?.id || '',
@@ -19,6 +95,7 @@ function emptyLegacySelection(module) {
 
 export default function NewOrderForm({ models, customers, action, catalogFormat }) {
   const [modelId, setModelId] = useState(models[0]?.id || '');
+  const [searchQuery, setSearchQuery] = useState('');
   const [lines, setLines] = useState({});
   const [legacySelections, setLegacySelections] = useState({});
   const selectedModel = useMemo(
@@ -26,6 +103,15 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
     [models, modelId]
   );
   const usesItems = catalogFormat === 'items';
+  const catalogEntries = usesItems ? selectedModel?.items || [] : selectedModel?.modules || [];
+  const normalizedQuery = searchText(searchQuery.trim());
+  const filteredEntries = catalogEntries.filter((entry) => {
+    if (!normalizedQuery) return true;
+    const searchable = usesItems
+      ? [entry.code, entry.description, entry.categoryOption, entry.sideOption]
+      : [entry.name, ...entry.variants.map((variant) => variant.mechanism)];
+    return searchable.some((value) => searchText(value).includes(normalizedQuery));
+  });
   const cartEntries = Object.entries(lines).filter(([, line]) => line.quantity > 0);
   const totalUnits = cartEntries.reduce((sum, [, line]) => sum + line.quantity, 0);
   const requestedLines = cartEntries.map(([, line]) => (
@@ -36,6 +122,7 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
 
   function changeModel(nextModelId) {
     setModelId(nextModelId);
+    setSearchQuery('');
   }
 
   function adjustLine(key, amount, defaults) {
@@ -102,25 +189,46 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
         <div className="module-selection-layout">
           <details className="order-catalog-details">
             <summary>
-              {selectedModel?.name || 'Modelo'} - {(usesItems ? selectedModel?.items : selectedModel?.modules)?.length || 0} elementos disponibles
+              {selectedModel?.name || 'Modelo'} - {catalogEntries.length} elementos disponibles
             </summary>
-            <div className="module-selection-list">
+            <label className="order-catalog-search">
+              Buscar módulo o artículo
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Código, descripción u opción"
+              />
+            </label>
+            {searchQuery ? <p className="order-catalog-result-count">{filteredEntries.length} de {catalogEntries.length} elementos</p> : null}
+            <div className="module-selection-list" aria-live="polite">
+              {filteredEntries.length === 0 ? <p className="cart-empty">No hay elementos que coincidan con la búsqueda.</p> : null}
               {usesItems
-                ? (selectedModel?.items || []).map((item) => (
+                ? filteredEntries.map((item) => (
                     <article className="order-module order-catalog-item" key={item.id}>
                       <div>
-                        <strong>{item.code}</strong>
+                        <div className="order-module-name">
+                          <strong>{item.code}</strong>
+                          {hasModuleDiagram([item.code, item.description, item.categoryOption, item.sideOption]) ? <ModuleDiagram values={[item.code, item.description, item.categoryOption, item.sideOption]} /> : null}
+                        </div>
                         <small>{item.description}</small>
                       </div>
                       <span className="order-tag">{itemDetails(item) || 'Sin opciones'}</span>
                       <button className="secondary-button add-item-button" type="button" onClick={() => addItem(item)}>+ Añadir artículo</button>
                     </article>
                   ))
-                : (selectedModel?.modules || []).map((module) => {
+                : filteredEntries.map((module) => {
                     const selection = legacySelections[module.id] || emptyLegacySelection(module);
+                    const hasSeatArmDiagram = hasModuleDiagram([module.name, ...module.variants.map((variant) => variant.mechanism)]);
                     return (
                       <article className="order-module" key={module.id}>
-                        <div><strong>{module.name}</strong>{module.needsSide ? <small>Requiere orientacion</small> : null}</div>
+                        <div>
+                          <div className="order-module-name">
+                            <strong>{module.name}</strong>
+                            {hasSeatArmDiagram ? <ModuleDiagram values={[module.name, ...module.variants.map((variant) => variant.mechanism)]} /> : null}
+                          </div>
+                          {module.needsSide ? <small>Requiere orientacion</small> : null}
+                        </div>
                         {module.variants.length > 1 ? <label>Categoria<select value={selection.variantId} onChange={(event) => updateLegacySelection(module.id, 'variantId', event.target.value)}>{module.variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.mechanism}</option>)}</select></label> : <span className="order-tag">{module.variants[0]?.mechanism || 'Sin categoria'}</span>}
                         {module.needsSide ? <label>Lado<select value={selection.side} onChange={(event) => updateLegacySelection(module.id, 'side', event.target.value)}><option value="izquierda">Izquierda</option><option value="derecha">Derecha</option></select></label> : null}
                         <button className="secondary-button add-item-button" type="button" onClick={() => addLegacyModule(module)}>+ Añadir artículo</button>

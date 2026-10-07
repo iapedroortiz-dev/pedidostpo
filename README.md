@@ -88,6 +88,9 @@ https://pedidostpo.vercel.app
 https://pedidostpo.vercel.app/auth/callback
 ```
 
+Para probar la recuperación de contraseña en local, añade también
+`http://localhost:3000/auth/callback` a **Authentication → URL Configuration → Redirect URLs**.
+
 Antes de fusionar una Pull Request, ejecuta:
 
 ```powershell

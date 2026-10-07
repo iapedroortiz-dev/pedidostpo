@@ -184,6 +184,76 @@ export async function updateManagedUserDetails(formData) {
   redirect('/usuarios?message=Nombre%20y%20correo%20actualizados%20correctamente.');
 }
 
+export async function resetManagedUserPassword(formData) {
+  const currentUserId = await requireAdmin();
+  const userId = String(formData.get('userId') || '').trim();
+  const password = String(formData.get('password') || '');
+  const passwordConfirmation = String(formData.get('passwordConfirmation') || '');
+
+  if (!uuidPattern.test(userId)) {
+    redirectWithError('El usuario seleccionado no es válido.');
+  }
+
+  if (userId === currentUserId) {
+    redirectWithError('Usa la recuperación de contraseña para cambiar tu propia cuenta.');
+  }
+
+  if (!validPassword(password)) {
+    redirectWithError('La contraseña debe tener al menos 12 caracteres e incluir letras y números.');
+  }
+
+  if (password !== passwordConfirmation) {
+    redirectWithError('Las contraseñas no coinciden.');
+  }
+
+  const admin = createAdminClient();
+  const targetProfile = await requireManageableUser(admin, userId);
+  const { error } = await admin.auth.admin.updateUserById(userId, { password });
+
+  if (error) {
+    console.error('Error restableciendo contraseña:', error);
+    redirectWithError('No se pudo restablecer la contraseña del usuario.');
+  }
+
+  revalidatePath('/usuarios');
+  redirect(`/usuarios?message=${encodeURIComponent(`Contraseña actualizada para ${targetProfile.email}.`)}`);
+}
+
+export async function changeOwnPassword(formData) {
+  await requireAdmin();
+  const currentPassword = String(formData.get('currentPassword') || '');
+  const password = String(formData.get('password') || '');
+  const passwordConfirmation = String(formData.get('passwordConfirmation') || '');
+
+  if (!currentPassword) {
+    redirectWithError('Indica tu contraseña actual.');
+  }
+
+  if (!validPassword(password)) {
+    redirectWithError('La contraseña debe tener al menos 12 caracteres e incluir letras y números.');
+  }
+
+  if (password !== passwordConfirmation) {
+    redirectWithError('Las contraseñas no coinciden.');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({
+    password,
+    current_password: currentPassword
+  });
+
+  if (error) {
+    console.error('Error actualizando contraseña propia:', error);
+    if (error.code === 'current_password_required') {
+      redirectWithError('La contraseña actual no es válida.');
+    }
+    redirectWithError('No se pudo actualizar tu contraseña.');
+  }
+
+  redirect('/usuarios?message=Tu%20contraseña%20se%20ha%20actualizado.');
+}
+
 export async function setManagedUserActive(formData) {
   const currentUserId = await requireAdmin();
   const userId = String(formData.get('userId') || '').trim();

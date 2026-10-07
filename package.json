@@ -4,7 +4,7 @@
   "private": true,
   "description": "MVP de gestión de pedidos para fabricación de sofás.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "start": "next start",
     "build": "next build"
   },
