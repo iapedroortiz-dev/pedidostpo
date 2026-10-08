@@ -168,7 +168,7 @@ export default async function OrdersPage({ searchParams }) {
     : { data: [] };
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, status, created_at, order_lines(quantity)')
+    .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity)')
     .order('created_at', { ascending: false });
   const error = messageFrom(params.error);
   const message = messageFrom(params.message);
@@ -194,7 +194,39 @@ export default async function OrdersPage({ searchParams }) {
           {(orders || []).map((order) => {
             const quantity = (order.order_lines || []).reduce((sum, line) => sum + line.quantity, 0);
             const nextStatus = order.status === 'pendiente' ? 'confirmado' : order.status === 'confirmado' ? 'en_fabricacion' : null;
-            return <article className="order-row" key={order.id}><div><strong>Pedido #{order.order_number}</strong><p>{order.client_name} - {order.client_code}</p><small>{order.model_name} - {quantity} unidades - {formatDate(order.order_date)}</small>{order.fabric_name ? <small>Tejido: {order.fabric_code} - {order.fabric_name} ({order.fabric_type === 'P' ? 'Piel' : 'Tela'})</small> : null}<small>Registrado: {formatCreatedAt(order.created_at)}</small></div><div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">{nextStatus === 'confirmado' ? 'Confirmar' : 'Enviar a fabricacion'}</button></form> : null}</div></article>;
+            return (
+              <article className="order-row" key={order.id}>
+                <div className="order-row-summary">
+                  <strong>Pedido #{order.order_number}</strong>
+                  <p>{order.client_name} - {order.client_code}</p>
+                  <small>{order.model_name} - {quantity} unidades - {formatDate(order.order_date)}</small>
+                  {order.fabric_name ? <small>Tejido: {order.fabric_code} - {order.fabric_name} ({order.fabric_type === 'P' ? 'Piel' : 'Tela'})</small> : null}
+                  <small>Registrado: {formatCreatedAt(order.created_at)}</small>
+                  {canManage ? (
+                    <details className="order-detail">
+                      <summary>Ver detalle del pedido</summary>
+                      <div className="order-detail-content">
+                        <div><strong>Tejido</strong><p>{order.fabric_name ? `${order.fabric_code} - ${order.fabric_name} (${order.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</p></div>
+                        <div><strong>Notas</strong><p>{order.notes || 'Sin notas adicionales.'}</p></div>
+                        <div>
+                          <strong>Artículos</strong>
+                          <ol className="order-detail-lines">
+                            {(order.order_lines || []).sort((first, second) => first.line_number - second.line_number).map((line) => (
+                              <li key={line.line_number}>
+                                <strong>{line.catalog_item_code || line.module_name}</strong>
+                                <span>{line.module_name}{line.mechanism ? ` - ${line.mechanism}` : ''}{line.side ? ` - ${line.side}` : ''}</span>
+                                <b>×{line.quantity}</b>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      </div>
+                    </details>
+                  ) : null}
+                </div>
+                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">{nextStatus === 'confirmado' ? 'Confirmar' : 'Enviar a fabricacion'}</button></form> : null}</div>
+              </article>
+            );
           })}
           {!orders?.length ? <p className="auth-intro">Todavia no hay pedidos registrados.</p> : null}
         </div>
