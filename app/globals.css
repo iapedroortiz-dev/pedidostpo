@@ -858,6 +858,10 @@ h2 {
   color: #17633a;
   background: #e4f7eb;
 }
+.status-servido {
+  color: #475569;
+  background: #e8edf2;
+}
 
 @media (max-width: 760px) {
   .orders-page {
@@ -1186,6 +1190,7 @@ body { background: #eef1ed; color: #1d2922; }
 .status-pendiente { color: #956210; background: #fff1d6; }
 .status-confirmado { color: #146c41; background: #e5f3e9; }
 .status-en_fabricacion { color: #17633a; background: #e3f5e8; }
+.status-servido { color: #475569; background: #e8edf2; }
 .status-bar-track { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: #edf2ee; }
 .status-bar-track > span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: #6fbc87; }
 .dashboard-recent-orders { grid-column: 1 / -1; }

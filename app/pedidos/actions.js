@@ -266,7 +266,7 @@ export async function createOrder(formData) {
 export async function advanceOrderStatus(formData) {
   const orderId = String(formData.get('orderId') || '').trim();
   const status = String(formData.get('status') || '').trim();
-  if (!orderId || !['confirmado', 'en_fabricacion'].includes(status)) {
+  if (!orderId || !['confirmado', 'en_fabricacion', 'servido'].includes(status)) {
     redirectWithError('El cambio de estado no es valido.');
   }
 

@@ -12,7 +12,8 @@ const roleLabels = {
 const statusLabels = {
   pendiente: 'Pendiente',
   confirmado: 'Confirmado',
-  en_fabricacion: 'En fabricacion'
+  en_fabricacion: 'En fabricacion',
+  servido: 'Servido'
 };
 
 function messageFrom(value) {
@@ -193,7 +194,7 @@ export default async function OrdersPage({ searchParams }) {
         <div className="orders-list">
           {(orders || []).map((order) => {
             const quantity = (order.order_lines || []).reduce((sum, line) => sum + line.quantity, 0);
-            const nextStatus = order.status === 'pendiente' ? 'confirmado' : order.status === 'confirmado' ? 'en_fabricacion' : null;
+            const nextStatus = order.status === 'pendiente' ? 'confirmado' : order.status === 'confirmado' ? 'en_fabricacion' : order.status === 'en_fabricacion' ? 'servido' : null;
             return (
               <article className="order-row" key={order.id}>
                 <div className="order-row-summary">
@@ -224,7 +225,7 @@ export default async function OrdersPage({ searchParams }) {
                     </details>
                   ) : null}
                 </div>
-                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">{nextStatus === 'confirmado' ? 'Confirmar' : 'Enviar a fabricacion'}</button></form> : null}</div>
+                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">{nextStatus === 'confirmado' ? 'Confirmar' : nextStatus === 'en_fabricacion' ? 'Enviar a fabricacion' : 'Marcar como servido'}</button></form> : null}</div>
               </article>
             );
           })}

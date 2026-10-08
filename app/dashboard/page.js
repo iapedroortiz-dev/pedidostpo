@@ -11,10 +11,11 @@ const roleLabels = {
 const statusLabels = {
   pendiente: 'Pendiente',
   confirmado: 'Confirmado',
-  en_fabricacion: 'En fabricación'
+  en_fabricacion: 'En fabricación',
+  servido: 'Servido'
 };
 
-const statusOrder = ['pendiente', 'confirmado', 'en_fabricacion'];
+const statusOrder = ['pendiente', 'confirmado', 'en_fabricacion', 'servido'];
 
 function getOrderUnits(order) {
   return (order.order_lines || []).reduce((total, line) => total + (line.quantity || 0), 0);

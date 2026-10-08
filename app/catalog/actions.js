@@ -68,10 +68,11 @@ export async function deleteCatalogVersion(formData) {
   const { count: orderCount, error: ordersError } = await admin
     .from('orders')
     .select('id', { count: 'exact', head: true })
-    .eq('catalog_version_id', catalogVersionId);
+    .eq('catalog_version_id', catalogVersionId)
+    .neq('status', 'servido');
   if (ordersError) throw ordersError;
   if (orderCount) {
-    redirect('/catalog?error=No%20se%20puede%20eliminar%20una%20tarifa%20con%20pedidos%20históricos.');
+    redirect('/catalog?error=No%20se%20puede%20eliminar%20una%20tarifa%20con%20pedidos%20aún%20no%20servidos.');
   }
 
   const { data: imports, error: importsError } = await admin
@@ -142,6 +143,16 @@ export async function deleteCatalogModels(formData) {
     .in('id', modelIds);
   if (modelsError || (models || []).length !== modelIds.length) {
     redirect('/catalog?error=Uno%20o%20varios%20modelos%20no%20pertenecen%20a%20esta%20tarifa.');
+  }
+
+  const { count: activeOrderCount, error: activeOrdersError } = await admin
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .in('catalog_model_id', modelIds)
+    .neq('status', 'servido');
+  if (activeOrdersError) throw activeOrdersError;
+  if (activeOrderCount) {
+    redirect('/catalog?error=No%20se%20pueden%20eliminar%20modelos%20con%20pedidos%20aún%20no%20servidos.');
   }
 
   const { error: deleteError } = await admin
