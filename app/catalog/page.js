@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
 import ImportForm from './import-form';
-import { publishCatalogVersion } from './actions';
+import DeleteCatalogButton from './delete-catalog-button';
+import { deleteCatalogVersion, publishCatalogVersion } from './actions';
 
 function messageFrom(value) {
   return typeof value === 'string' ? value : '';
@@ -12,6 +13,31 @@ function formatDate(value) {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(new Date(value));
+}
+
+async function catalogItemsForModels(supabase, modelIds) {
+  const items = [];
+  const pageSize = 1000;
+
+  for (let start = 0; start < modelIds.length; start += 100) {
+    const modelIdBatch = modelIds.slice(start, start + 100);
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('catalog_items')
+        .select('id, catalog_model_id, code, description, category_option, side_option, display_order')
+        .in('catalog_model_id', modelIdBatch)
+        .order('catalog_model_id')
+        .order('display_order')
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+
+      items.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+  }
+
+  return items;
 }
 
 export default async function CatalogPage({ searchParams }) {
@@ -43,12 +69,14 @@ export default async function CatalogPage({ searchParams }) {
         .order('display_order')
     : { data: [] };
   const modelIds = (models || []).map((model) => model.id);
-  const { data: items } = modelIds.length
+  const items = modelIds.length
+    ? await catalogItemsForModels(supabase, modelIds)
+    : [];
+  const { data: fabrics } = versionIds.length
     ? await supabase
-        .from('catalog_items')
-        .select('id, catalog_model_id, code, description, category_option, side_option, display_order')
-        .in('catalog_model_id', modelIds)
-        .order('display_order')
+        .from('catalog_fabrics')
+        .select('id, catalog_version_id')
+        .in('catalog_version_id', versionIds)
     : { data: [] };
 
   const error = messageFrom(params.error);
@@ -84,11 +112,14 @@ export default async function CatalogPage({ searchParams }) {
               (model) => model.catalog_version_id === version.id
             );
             const itemCount = versionModels.reduce(
-              (total, model) => total + (items || []).filter(
+              (total, model) => total + items.filter(
                 (item) => item.catalog_model_id === model.id
               ).length,
               0
             );
+            const fabricCount = (fabrics || []).filter(
+              (fabric) => fabric.catalog_version_id === version.id
+            ).length;
 
             return (
               <article className="catalog-version" key={version.id}>
@@ -102,7 +133,7 @@ export default async function CatalogPage({ searchParams }) {
                           ? ` - Publicada: ${formatDate(version.published_at)}`
                           : ''}
                       </p>
-                      <small>{versionModels.length} modelos - {itemCount} elementos</small>
+                      <small>{versionModels.length} modelos - {itemCount} elementos - {fabricCount} tejidos</small>
                     </div>
 
                     <div className="catalog-version-actions">
@@ -115,13 +146,14 @@ export default async function CatalogPage({ searchParams }) {
                           <button type="submit">Publicar</button>
                         </form>
                       ) : null}
+                      {['borrador', 'archivado'].includes(version.status) ? <DeleteCatalogButton action={deleteCatalogVersion} versionId={version.id} versionLabel={version.label} /> : null}
                     </div>
                   </div>
 
                   {versionModels.length ? (
                     <div className="catalog-model-list">
                       {versionModels.map((model) => {
-                        const modelItems = (items || []).filter(
+                        const modelItems = items.filter(
                           (item) => item.catalog_model_id === model.id
                         );
 

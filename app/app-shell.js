@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { logout } from './dashboard/actions';
 
 const links = [
   { href: '/dashboard', label: 'Panel', icon: '▦', roles: ['admin', 'pedidos', 'representante'] },
@@ -45,7 +46,12 @@ export default function AppShell({ profile, children }) {
             </Link>
           ))}
         </nav>
-        <div className="app-sidebar-user"><span>{(profile.full_name || 'U').split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()}</span><div><strong>{profile.full_name || 'Usuario'}</strong><small>{roleLabels[profile.role] || profile.role}</small></div></div>
+        <div className="app-sidebar-footer">
+          <div className="app-sidebar-user"><span>{(profile.full_name || 'U').split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()}</span><div><strong>{profile.full_name || 'Usuario'}</strong><small>{roleLabels[profile.role] || profile.role}</small></div></div>
+          <form className="app-sidebar-logout" action={logout}>
+            <button type="submit" title={collapsed ? 'Cerrar sesión' : undefined}><span aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+          </form>
+        </div>
       </aside>
       <div className="app-content">{children}</div>
     </div>

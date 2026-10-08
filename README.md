@@ -73,7 +73,7 @@ SUPABASE_SECRET_KEY=
 
 ## Catálogo y datos
 
-El archivo Excel original se guarda en el bucket privado `catalog-source` de Supabase. Cada carga crea una versión de catálogo en borrador e incorpora los modelos y artículos de la tarifa, además de actualizar los clientes incluidos en la importación.
+El archivo Excel original se guarda en el bucket privado `catalog-source` de Supabase. Cada carga crea una versión de catálogo en borrador e incorpora los modelos, artículos y tejidos de la tarifa, además de actualizar los clientes incluidos en la importación. En la hoja `PRODUCTOS`, las columnas requeridas son `Cod.`, `Descripción`, `Tipo` y `Opción`; el modelo se infiere de la primera palabra de cada descripción. La hoja `TEJIDOS` es obligatoria y debe incluir `COD_TAPIZADO`, `NOMBRE_TAPIZADO` y `TIPO_TAPIZADO` (`P` para piel y `T` para tela).
 
 Los Excel no se suben al repositorio. Las migraciones de base de datos y la lógica de importación sí se versionan en Git, dentro de `supabase/migrations` y `app/api/catalog/import`.
 

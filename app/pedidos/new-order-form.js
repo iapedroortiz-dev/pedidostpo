@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -32,11 +32,74 @@ function isChaiselongue(values) {
 
 function isOneSeatTerminal(values) {
   const text = values.map(searchText).join(' ');
-  return /1\s*pl/.test(text) && /\bterminal\b/.test(text);
+  return /\bterminal\b/.test(text);
+}
+
+function isFabric(values) {
+  return /\btela\b/.test(values.map(searchText).join(' '));
+}
+
+function isLeather(values) {
+  return /\bpiel\b|\bleather\b/.test(values.map(searchText).join(' '));
+}
+
+const diagramFilterOptions = [
+  { id: 'one-seat-arm-left', label: '1 plaza con brazo izquierdo', source: '/assets/mod-1-pl-con-brazo.png', mirrored: true },
+  { id: 'one-seat-arm-right', label: '1 plaza con brazo derecho', source: '/assets/mod-1-pl-con-brazo.png' },
+  { id: 'two-three-seat-arm-left', label: '2 o 3 plazas con brazo izquierdo', source: '/assets/mod-2-3-pl-con-brazo.png', mirrored: true },
+  { id: 'two-three-seat-arm-right', label: '2 o 3 plazas con brazo derecho', source: '/assets/mod-2-3-pl-con-brazo.png' },
+  { id: 'pouff', label: 'Pouff', source: '/assets/pouff.png' },
+  { id: 'chaiselongue-left', label: 'Chaiselongue izquierda', source: '/assets/chaiselongue.png' },
+  { id: 'chaiselongue-right', label: 'Chaiselongue derecha', source: '/assets/chaiselongue.png', mirrored: true },
+  { id: 'one-seat-terminal-left', label: '1 plaza terminal izquierda', source: '/assets/mod-1-pl-terminal.png' },
+  { id: 'one-seat-terminal-right', label: '1 plaza terminal derecha', source: '/assets/mod-1-pl-terminal.png', mirrored: true }
+];
+
+const moduleTypeOptions = [
+  { id: 'one-seat-arm', label: '1 plaza con brazo', source: '/assets/mod-1-pl-con-brazo.png' },
+  { id: 'one-seat-no-arm', label: '1 plaza sin brazo' },
+  { id: 'two-three-seat-arm', label: '2–3 plazas con brazo', source: '/assets/mod-2-3-pl-con-brazo.png' },
+  { id: 'chaiselongue', label: 'Chaiselongue', source: '/assets/chaiselongue.png' },
+  { id: 'one-seat-terminal', label: '1 plaza terminal', source: '/assets/mod-1-pl-terminal.png' },
+  { id: 'pouff', label: 'Pouff', source: '/assets/pouff.png' },
+  { id: 'other', label: 'Otros módulos' }
+];
+
+const diagramFiltersByModuleType = {
+  'one-seat-arm': ['one-seat-arm-left', 'one-seat-arm-right'],
+  'two-three-seat-arm': ['two-three-seat-arm-left', 'two-three-seat-arm-right'],
+  chaiselongue: ['chaiselongue-left', 'chaiselongue-right'],
+  'one-seat-terminal': ['one-seat-terminal-left', 'one-seat-terminal-right'],
+  pouff: ['pouff']
+};
+
+function moduleDiagramFilterId(values) {
+  if (isPouff(values)) return 'pouff';
+
+  const rightArm = hasRightArm(values);
+  if (isChaiselongue(values)) return rightArm ? 'chaiselongue-right' : 'chaiselongue-left';
+  if (isOneSeatTerminal(values)) return rightArm ? 'one-seat-terminal-right' : 'one-seat-terminal-left';
+  if (!isOneToThreeSeatModuleWithArm(values)) return null;
+
+  const isOneSeat = /1\s*pl/.test(values.map(searchText).join(' '));
+  const side = hasLeftArm(values) ? 'left' : 'right';
+  return `${isOneSeat ? 'one-seat' : 'two-three-seat'}-arm-${side}`;
+}
+
+function moduleTypeFilterId(values) {
+  const text = values.map(searchText).join(' ');
+  if (isPouff(values)) return 'pouff';
+  if (isChaiselongue(values)) return 'chaiselongue';
+  if (isOneSeatTerminal(values)) return 'one-seat-terminal';
+  if (isOneToThreeSeatModuleWithArm(values)) {
+    return /1\s*pl/.test(text) ? 'one-seat-arm' : 'two-three-seat-arm';
+  }
+  if (/1\s*pl/.test(text)) return 'one-seat-no-arm';
+  return 'other';
 }
 
 function hasModuleDiagram(values) {
-  return isPouff(values) || isChaiselongue(values) || isOneSeatTerminal(values) || isOneToThreeSeatModuleWithArm(values);
+  return Boolean(moduleDiagramFilterId(values));
 }
 
 function hasLeftArm(values) {
@@ -93,24 +156,42 @@ function emptyLegacySelection(module) {
   };
 }
 
-export default function NewOrderForm({ models, customers, action, catalogFormat }) {
+export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat }) {
   const [modelId, setModelId] = useState(models[0]?.id || '');
+  const [fabricId, setFabricId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [materialFilter, setMaterialFilter] = useState('');
+  const [moduleTypeFilter, setModuleTypeFilter] = useState('');
+  const [diagramFilter, setDiagramFilter] = useState('');
   const [lines, setLines] = useState({});
   const [legacySelections, setLegacySelections] = useState({});
+  const modelSelectRef = useRef(null);
+  const cartRef = useRef(null);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === modelId),
     [models, modelId]
   );
+  const selectedFabric = useMemo(
+    () => fabrics.find((fabric) => fabric.id === fabricId),
+    [fabrics, fabricId]
+  );
   const usesItems = catalogFormat === 'items';
   const catalogEntries = usesItems ? selectedModel?.items || [] : selectedModel?.modules || [];
+  const visibleDiagramFilterOptions = moduleTypeFilter
+    ? diagramFilterOptions.filter((option) => diagramFiltersByModuleType[moduleTypeFilter]?.includes(option.id))
+    : diagramFilterOptions;
   const normalizedQuery = searchText(searchQuery.trim());
   const filteredEntries = catalogEntries.filter((entry) => {
-    if (!normalizedQuery) return true;
     const searchable = usesItems
       ? [entry.code, entry.description, entry.categoryOption, entry.sideOption]
       : [entry.name, ...entry.variants.map((variant) => variant.mechanism)];
-    return searchable.some((value) => searchText(value).includes(normalizedQuery));
+    const matchesText = !normalizedQuery || searchable.some((value) => searchText(value).includes(normalizedQuery));
+    const matchesMaterial = !materialFilter
+      || materialFilter === 'fabric' && isFabric(searchable)
+      || materialFilter === 'leather' && isLeather(searchable);
+    const matchesType = !moduleTypeFilter || moduleTypeFilterId(searchable) === moduleTypeFilter;
+    const matchesDiagram = !diagramFilter || moduleDiagramFilterId(searchable) === diagramFilter;
+    return matchesText && matchesMaterial && matchesType && matchesDiagram;
   });
   const cartEntries = Object.entries(lines).filter(([, line]) => line.quantity > 0);
   const totalUnits = cartEntries.reduce((sum, [, line]) => sum + line.quantity, 0);
@@ -123,6 +204,15 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
   function changeModel(nextModelId) {
     setModelId(nextModelId);
     setSearchQuery('');
+    setMaterialFilter('');
+    setModuleTypeFilter('');
+    setDiagramFilter('');
+  }
+
+  function changeFabric(nextFabricId) {
+    setFabricId(nextFabricId);
+    const fabric = fabrics.find((item) => item.id === nextFabricId);
+    setMaterialFilter(fabric?.type === 'P' ? 'leather' : fabric?.type === 'T' ? 'fabric' : '');
   }
 
   function adjustLine(key, amount, defaults) {
@@ -176,14 +266,15 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
       <div className="order-form-grid">
         <label className="order-customer-select">Cliente<select name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
         <label>Fecha del pedido<input name="orderDate" type="date" defaultValue={today()} required /></label>
-        <label>Modelo<select name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+        <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+        <label>Tejido<select name="catalogFabricId" value={fabricId} onChange={(event) => changeFabric(event.target.value)} required><option value="" disabled>Selecciona tela o piel</option>{fabrics.map((fabric) => <option key={fabric.id} value={fabric.id}>{fabric.code} - {fabric.name} ({fabric.type === 'P' ? 'Piel' : 'Tela'})</option>)}</select></label>
       </div>
 
       <section className="module-selection" aria-labelledby="catalog-selection-title">
         <div>
           <p className="eyebrow">CONFIGURACION</p>
-          <h3 id="catalog-selection-title">Elementos del pedido</h3>
-          <p>Selecciona los artículos y revísalos en el carrito antes de enviar el pedido.</p>
+          <h3 id="catalog-selection-title">Configura la modulación</h3>
+          <p>Elige el tejido y responde estas preguntas para reducir el catálogo. Puedes cambiar los filtros siempre que necesites añadir otro módulo.</p>
         </div>
 
         <div className="module-selection-layout">
@@ -191,6 +282,28 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
             <summary>
               {selectedModel?.name || 'Modelo'} - {catalogEntries.length} elementos disponibles
             </summary>
+            <section className="catalog-guided-filters" aria-label="Filtros guiados del catálogo">
+              <div className="catalog-filter-question">
+                <p>1. Tapizado: {selectedFabric ? `${selectedFabric.name} (${selectedFabric.type === 'P' ? 'Piel' : 'Tela'})` : 'selecciona un tejido arriba'}</p>
+                <div className="catalog-filter-buttons">
+                  <button className={!materialFilter ? 'is-selected' : ''} type="button" onClick={() => setMaterialFilter('')} aria-pressed={!materialFilter}>Todos</button>
+                  <button className={materialFilter === 'fabric' ? 'is-selected' : ''} type="button" onClick={() => setMaterialFilter('fabric')} aria-pressed={materialFilter === 'fabric'}>Tela</button>
+                  <button className={materialFilter === 'leather' ? 'is-selected' : ''} type="button" onClick={() => setMaterialFilter('leather')} aria-pressed={materialFilter === 'leather'}>Piel</button>
+                </div>
+              </div>
+              <div className="catalog-filter-question">
+                <p>2. ¿Qué tipo de módulo buscas?</p>
+                <div className="module-type-options">
+                  <button className={!moduleTypeFilter ? 'is-selected' : ''} type="button" onClick={() => { setModuleTypeFilter(''); setDiagramFilter(''); }} aria-pressed={!moduleTypeFilter}>Ver todos</button>
+                  {moduleTypeOptions.map((option) => (
+                    <button className={moduleTypeFilter === option.id ? 'is-selected' : ''} type="button" key={option.id} onClick={() => { setModuleTypeFilter(option.id); setDiagramFilter(''); }} aria-pressed={moduleTypeFilter === option.id}>
+                      {option.source ? <img className="module-seat-arm-diagram" src={option.source} alt="" /> : null}
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
             <label className="order-catalog-search">
               Buscar módulo o artículo
               <input
@@ -200,7 +313,20 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
                 placeholder="Código, descripción u opción"
               />
             </label>
-            {searchQuery ? <p className="order-catalog-result-count">{filteredEntries.length} de {catalogEntries.length} elementos</p> : null}
+            {visibleDiagramFilterOptions.length ? (
+              <fieldset className="diagram-filter-picker">
+                <legend>¿Necesitas una orientación concreta? <span>Opcional</span></legend>
+                <div className="diagram-filter-options">
+                  {visibleDiagramFilterOptions.map((option) => (
+                    <button className={`diagram-filter-option${diagramFilter === option.id ? ' is-selected' : ''}`} type="button" key={option.id} onClick={() => setDiagramFilter((current) => current === option.id ? '' : option.id)} aria-pressed={diagramFilter === option.id} title={option.label}>
+                      <img className={option.mirrored ? 'module-seat-arm-diagram module-seat-arm-diagram-left' : 'module-seat-arm-diagram'} src={option.source} alt="" />
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+            {searchQuery || materialFilter || moduleTypeFilter || diagramFilter ? <p className="order-catalog-result-count">{filteredEntries.length} de {catalogEntries.length} elementos</p> : null}
             <div className="module-selection-list" aria-live="polite">
               {filteredEntries.length === 0 ? <p className="cart-empty">No hay elementos que coincidan con la búsqueda.</p> : null}
               {usesItems
@@ -238,7 +364,7 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
             </div>
           </details>
 
-          <aside className="order-cart" aria-live="polite">
+          <aside className="order-cart" ref={cartRef} tabIndex="-1" aria-live="polite">
             <div className="order-cart-heading"><div><p className="eyebrow">CARRITO</p><h3>Artículos añadidos</h3></div><span className="cart-total">{totalUnits}</span></div>
             {cartEntries.length ? (
               <div className="cart-lines">
@@ -252,6 +378,10 @@ export default function NewOrderForm({ models, customers, action, catalogFormat 
             ) : <p className="cart-empty">Aún no has añadido artículos.</p>}
             <div className="cart-footer"><span>Total de unidades</span><strong>{totalUnits}</strong></div>
           </aside>
+        </div>
+        <div className="order-flow-actions">
+          <button className="secondary-button" type="button" disabled={!cartEntries.length} onClick={() => cartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver resumen del pedido</button>
+          <button className="secondary-button" type="button" onClick={() => { modelSelectRef.current?.focus(); modelSelectRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Añadir módulos de otro modelo</button>
         </div>
       </section>
 

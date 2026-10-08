@@ -7,6 +7,7 @@ const { catalogAndCustomersFromBuffer } = require('../../../../lib/catalog');
 export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const INSERT_BATCH_SIZE = 500;
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -24,6 +25,15 @@ function catalogLabelFromFileName(fileName) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120);
+}
+
+async function insertInBatches(admin, table, rows) {
+  for (let index = 0; index < rows.length; index += INSERT_BATCH_SIZE) {
+    const { error } = await admin
+      .from(table)
+      .insert(rows.slice(index, index + INSERT_BATCH_SIZE));
+    if (error) throw error;
+  }
 }
 
 export async function POST(request) {
@@ -195,38 +205,41 @@ export async function POST(request) {
       throw importError;
     }
 
-    for (const [modelIndex, model] of catalog.models.entries()) {
-      const { data: savedModel, error: modelError } = await admin
-        .from('catalog_models')
-        .insert({
-          catalog_version_id: catalogVersionId,
-          name: model.name,
-          display_order: modelIndex + 1
-        })
-        .select('id')
-        .single();
+    const { data: savedModels, error: modelsError } = await admin
+      .from('catalog_models')
+      .insert(catalog.models.map((model, index) => ({
+        catalog_version_id: catalogVersionId,
+        name: model.name,
+        display_order: index + 1
+      })))
+      .select('id, display_order');
+    if (modelsError) throw modelsError;
 
-      if (modelError) {
-        throw modelError;
+    const modelIdByOrder = new Map(
+      (savedModels || []).map((model) => [model.display_order, model.id])
+    );
+    const itemRows = catalog.models.flatMap((model, modelIndex) => {
+      const catalogModelId = modelIdByOrder.get(modelIndex + 1);
+      if (!catalogModelId) {
+        throw new Error('No se pudieron asociar los productos con sus modelos.');
       }
-
-      for (const [itemIndex, item] of model.items.entries()) {
-        const { error: itemError } = await admin
-          .from('catalog_items')
-          .insert({
-            catalog_model_id: savedModel.id,
-            code: item.code,
-            description: item.description,
-            category_option: item.categoryOption,
-            side_option: item.sideOption,
-            display_order: itemIndex + 1
-          });
-
-        if (itemError) {
-          throw itemError;
-        }
-      }
-    }
+      return model.items.map((item, itemIndex) => ({
+        catalog_model_id: catalogModelId,
+        code: item.code,
+        description: item.description,
+        category_option: item.categoryOption,
+        side_option: item.sideOption,
+        display_order: itemIndex + 1
+      }));
+    });
+    await insertInBatches(admin, 'catalog_items', itemRows);
+    await insertInBatches(admin, 'catalog_fabrics', catalog.fabrics.map((fabric, index) => ({
+        catalog_version_id: catalogVersionId,
+        code: fabric.code,
+        name: fabric.name,
+        fabric_type: fabric.fabricType,
+        display_order: index + 1
+      })));
 
     await admin.from('audit_events').insert({
       actor_id: userId,
@@ -238,6 +251,7 @@ export async function POST(request) {
         source_file: originalFileName,
         model_count: catalog.models.length,
         customer_count: catalog.customers.length,
+        fabric_count: catalog.fabrics.length,
         item_count: catalog.models.reduce(
           (total, model) => total + model.items.length,
           0
@@ -252,6 +266,7 @@ export async function POST(request) {
         status: 'borrador',
         modelCount: catalog.models.length,
         customerCount: catalog.customers.length,
+        fabricCount: catalog.fabrics.length,
         itemCount: catalog.models.reduce(
           (total, model) => total + model.items.length,
           0

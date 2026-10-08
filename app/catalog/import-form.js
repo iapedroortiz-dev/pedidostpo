@@ -25,7 +25,7 @@ export default function ImportForm() {
 
     form.reset();
     setStatus(
-      `Version "${payload.label}" creada en borrador con ${payload.modelCount} modelos, ${payload.itemCount} elementos y ${payload.customerCount} clientes actualizados.`
+      `Version "${payload.label}" creada en borrador con ${payload.modelCount} modelos, ${payload.itemCount} elementos, ${payload.fabricCount} tejidos y ${payload.customerCount} clientes actualizados.`
     );
     router.refresh();
   }
@@ -36,8 +36,9 @@ export default function ImportForm() {
         <p className="eyebrow">IMPORTACION PRIVADA</p>
         <h2>Subir nueva tarifa</h2>
         <p>
-          El archivo se guarda en almacenamiento privado y genera una version
-          en borrador; no se publica automaticamente.
+          El Excel requiere PRODUCTOS (Cod., Descripción, Tipo y Opción),
+          CLIENTES y TEJIDOS (COD_TAPIZADO, NOMBRE_TAPIZADO, TIPO_TAPIZADO).
+          El modelo se detecta por la primera palabra de cada descripción.
         </p>
       </div>
 

@@ -161,10 +161,11 @@ export async function createOrder(formData) {
   const orderDate = String(formData.get('orderDate') || '').trim();
   const notes = String(formData.get('notes') || '').trim();
   const catalogModelId = String(formData.get('catalogModelId') || '').trim();
+  const catalogFabricId = String(formData.get('catalogFabricId') || '').trim();
   if (!customerId || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
     redirectWithError('Completa el cliente y la fecha del pedido.');
   }
-  if (!catalogModelId || notes.length > 2000) {
+  if (!catalogModelId || !catalogFabricId || notes.length > 2000) {
     redirectWithError('Los datos del pedido no son validos.');
   }
   const requestedLines = parseRequestedLines(formData);
@@ -185,6 +186,16 @@ export async function createOrder(formData) {
     .eq('status', 'publicado')
     .maybeSingle();
   if (!publishedVersion) redirectWithError('No hay un catalogo publicado disponible.');
+
+  const { data: fabric } = await supabase
+    .from('catalog_fabrics')
+    .select('id, code, name, fabric_type')
+    .eq('id', catalogFabricId)
+    .eq('catalog_version_id', publishedVersion.id)
+    .maybeSingle();
+  if (!fabric) {
+    redirectWithError('Selecciona un tejido válido del catálogo publicado.');
+  }
 
   const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
   const usesLegacy = requestedLines.every((line) => String(line?.variantId || '').trim());
@@ -222,6 +233,10 @@ export async function createOrder(formData) {
       catalog_version_id: publishedVersion.id,
       catalog_model_id: orderModelId,
       model_name: orderModelName,
+      catalog_fabric_id: fabric.id,
+      fabric_code: fabric.code,
+      fabric_name: fabric.name,
+      fabric_type: fabric.fabric_type,
       customer_id: customer.id,
       client_code: customer.client_code,
       client_name: customer.trade_name,
