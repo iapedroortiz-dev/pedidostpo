@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
 import ImportForm from './import-form';
+import CatalogModelBulkForm from './catalog-model-bulk-form';
 import DeleteCatalogButton from './delete-catalog-button';
-import { deleteCatalogVersion, publishCatalogVersion } from './actions';
+import { deleteCatalogModels, deleteCatalogVersion, publishCatalogVersion } from './actions';
 
 function messageFrom(value) {
   return typeof value === 'string' ? value : '';
@@ -120,6 +121,7 @@ export default async function CatalogPage({ searchParams }) {
             const fabricCount = (fabrics || []).filter(
               (fabric) => fabric.catalog_version_id === version.id
             ).length;
+            const canEditModels = ['borrador', 'archivado'].includes(version.status);
 
             return (
               <article className="catalog-version" key={version.id}>
@@ -151,6 +153,7 @@ export default async function CatalogPage({ searchParams }) {
                   </div>
 
                   {versionModels.length ? (
+                    <CatalogModelBulkForm action={deleteCatalogModels} versionId={version.id} enabled={canEditModels}>
                     <div className="catalog-model-list">
                       {versionModels.map((model) => {
                         const modelItems = items.filter(
@@ -158,29 +161,33 @@ export default async function CatalogPage({ searchParams }) {
                         );
 
                         return (
-                          <details key={model.id} className="catalog-model-details">
-                            <summary>{model.name} ({modelItems.length} elementos)</summary>
-                            {modelItems.length ? (
-                              <div className="catalog-table-wrap">
-                                <table className="catalog-items-table">
-                                  <thead><tr><th>Codigo</th><th>Descripcion</th><th>Categoria</th><th>Lado</th></tr></thead>
-                                  <tbody>
-                                    {modelItems.map((item) => (
-                                      <tr key={item.id}>
-                                        <td>{item.code}</td>
-                                        <td>{item.description}</td>
-                                        <td>{item.category_option || '-'}</td>
-                                        <td>{item.side_option || '-'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : <p className="catalog-legacy-note">Version anterior sin elementos detallados.</p>}
-                          </details>
+                          <div className={canEditModels ? 'catalog-model-selectable' : ''} key={model.id}>
+                            {canEditModels ? <label className="catalog-model-checkbox"><input type="checkbox" name="modelIds" value={model.id} /><span>Seleccionar {model.name}</span></label> : null}
+                            <details className="catalog-model-details">
+                              <summary>{model.name} ({modelItems.length} elementos)</summary>
+                              {modelItems.length ? (
+                                <div className="catalog-table-wrap">
+                                  <table className="catalog-items-table">
+                                    <thead><tr><th>Codigo</th><th>Descripcion</th><th>Categoria</th><th>Lado</th></tr></thead>
+                                    <tbody>
+                                      {modelItems.map((item) => (
+                                        <tr key={item.id}>
+                                          <td>{item.code}</td>
+                                          <td>{item.description}</td>
+                                          <td>{item.category_option || '-'}</td>
+                                          <td>{item.side_option || '-'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : <p className="catalog-legacy-note">Version anterior sin elementos detallados.</p>}
+                            </details>
+                          </div>
                         );
                       })}
                     </div>
+                    </CatalogModelBulkForm>
                   ) : null}
                 </div>
               </article>

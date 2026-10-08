@@ -100,3 +100,60 @@ export async function deleteCatalogVersion(formData) {
   revalidatePath('/catalog');
   redirect('/catalog?message=Tarifa%20eliminada%20correctamente.');
 }
+
+export async function deleteCatalogModels(formData) {
+  const catalogVersionId = String(formData.get('catalogVersionId') || '');
+  const modelIds = [...new Set(formData.getAll('modelIds').map(String).filter(Boolean))];
+  if (!catalogVersionId || !modelIds.length) {
+    redirect('/catalog?error=Selecciona%20al%20menos%20un%20modelo%20para%20eliminar.');
+  }
+
+  const supabase = await createClient();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, active')
+    .eq('id', userId)
+    .single();
+  if (!profile?.active || profile.role !== 'admin') {
+    redirect('/catalog?error=No%20tienes%20permiso%20para%20eliminar%20modelos.');
+  }
+
+  const admin = createAdminClient();
+  const { data: version, error: versionError } = await admin
+    .from('catalog_versions')
+    .select('status')
+    .eq('id', catalogVersionId)
+    .maybeSingle();
+  if (versionError || !version) {
+    redirect('/catalog?error=La%20versión%20de%20catálogo%20no%20existe.');
+  }
+  if (version.status === 'publicado') {
+    redirect('/catalog?error=No%20se%20pueden%20eliminar%20modelos%20de%20la%20tarifa%20publicada.');
+  }
+
+  const { data: models, error: modelsError } = await admin
+    .from('catalog_models')
+    .select('id')
+    .eq('catalog_version_id', catalogVersionId)
+    .in('id', modelIds);
+  if (modelsError || (models || []).length !== modelIds.length) {
+    redirect('/catalog?error=Uno%20o%20varios%20modelos%20no%20pertenecen%20a%20esta%20tarifa.');
+  }
+
+  const { error: deleteError } = await admin
+    .from('catalog_models')
+    .delete()
+    .eq('catalog_version_id', catalogVersionId)
+    .in('id', modelIds);
+  if (deleteError) {
+    console.error('Error eliminando modelos:', deleteError);
+    redirect('/catalog?error=No%20se%20pudieron%20eliminar%20los%20modelos.%20Puede%20que%20tengan%20pedidos%20históricos.');
+  }
+
+  revalidatePath('/catalog');
+  redirect(`/catalog?message=${encodeURIComponent(`${modelIds.length} modelo(s) eliminado(s) correctamente.`)}`);
+}
