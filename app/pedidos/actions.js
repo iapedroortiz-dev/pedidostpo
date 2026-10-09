@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { sendNewOrderEmail } from '../../lib/order-notification';
 
 const allowedSides = new Set(['izquierda', 'derecha']);
 
@@ -30,7 +32,7 @@ async function currentUserProfile(supabase) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, active')
+    .select('role, active, full_name, email')
     .eq('id', userId)
     .single();
   if (!profile?.active) redirect('/login?error=Usuario%20sin%20acceso%20activo.');
@@ -259,8 +261,27 @@ export async function createOrder(formData) {
     redirectWithError('El pedido no se pudo completar. Contacta con administracion.');
   }
 
+  let emailNotice = '';
+  try {
+    const emailResult = await sendNewOrderEmail({
+      admin: createAdminClient(),
+      order: { ...order, order_date: orderDate, model_name: orderModelName, notes },
+      customer,
+      fabric,
+      lines,
+      representative: profile
+    });
+    if (!emailResult.sent) {
+      console.warn('Aviso de pedido no enviado:', emailResult.reason);
+      emailNotice = ' El aviso por email está pendiente de configuración.';
+    }
+  } catch (emailError) {
+    console.error('No se pudo enviar el aviso de nuevo pedido:', emailError);
+    emailNotice = ' El pedido se ha registrado, pero no se pudo enviar el aviso por email.';
+  }
+
   revalidatePath('/pedidos');
-  redirect(`/pedidos?message=${encodeURIComponent(`Pedido #${order.order_number} creado correctamente.`)}`);
+  redirect(`/pedidos?message=${encodeURIComponent(`Pedido #${order.order_number} creado correctamente.${emailNotice}`)}`);
 }
 
 export async function advanceOrderStatus(formData) {
