@@ -187,9 +187,14 @@ export default async function OrdersPage({ searchParams }) {
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p className="catalog-success" role="status">{message}</p> : null}
 
-      {canCreate ? <section className="orders-panel"><p className="eyebrow">NUEVO PEDIDO</p><h2>Crear pedido</h2>{catalog?.models?.length && catalog?.fabrics?.length && customers?.length ? <NewOrderForm models={catalog.models} fabrics={catalog.fabrics} customers={customers} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">{catalog?.models?.length ? catalog?.fabrics?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'El catálogo publicado no incluye tejidos. Importa una nueva versión con la hoja TEJIDOS.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</section> : null}
+      {canCreate ? <details className="orders-panel orders-panel-disclosure">
+        <summary className="orders-panel-summary"><div><p className="eyebrow">NUEVO PEDIDO</p><h2>Crear pedido</h2><span>Configura y envía un pedido a Pedidos.</span></div><b>Crear pedido</b></summary>
+        <div className="orders-panel-content">{catalog?.models?.length && catalog?.fabrics?.length && customers?.length ? <NewOrderForm models={catalog.models} fabrics={catalog.fabrics} customers={customers} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">{catalog?.models?.length ? catalog?.fabrics?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'El catálogo publicado no incluye tejidos. Importa una nueva versión con la hoja TEJIDOS.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</div>
+      </details> : null}
 
-      <section className="orders-panel">
+      <details className="orders-panel orders-panel-disclosure">
+        <summary className="orders-panel-summary"><div><p className="eyebrow">{canManage ? 'BANDEJA OPERATIVA' : 'MIS PEDIDOS'}</p><h2>{canManage ? 'Todos los pedidos' : 'Mis pedidos'}</h2><span>{canManage ? 'Consulta y gestiona los pedidos recibidos.' : 'Consulta el estado de los pedidos que has enviado.'}</span></div><div className="orders-panel-summary-side"><span className="orders-count">{(orders || []).length}</span><b>Ver pedidos</b></div></summary>
+        <div className="orders-panel-content">
         <div className="orders-list-heading"><div><p className="eyebrow">{canManage ? 'BANDEJA OPERATIVA' : 'MIS PEDIDOS'}</p><h2>{canManage ? 'Todos los pedidos' : 'Pedidos enviados'}</h2></div><span className="orders-count">{(orders || []).length}</span></div>
         <div className="orders-list">
           {(orders || []).map((order) => {
@@ -231,7 +236,8 @@ export default async function OrdersPage({ searchParams }) {
           })}
           {!orders?.length ? <p className="auth-intro">Todavia no hay pedidos registrados.</p> : null}
         </div>
-      </section>
+        </div>
+      </details>
     </main>
   );
 }

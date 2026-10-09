@@ -6,6 +6,11 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatOrderDate(value) {
+  if (!value) return 'Sin indicar';
+  return new Intl.DateTimeFormat('es-ES', { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`));
+}
+
 function itemDetails(item) {
   return [item.categoryOption, item.sideOption].filter(Boolean).join(' - ');
 }
@@ -22,8 +27,21 @@ function isOneToThreeSeatModuleWithArm(values) {
   return /(?:1|2|3)\s*pl/.test(text) && /c\s*\/\s*b/.test(text);
 }
 
+function isOneSeatModuleWithoutArm(values) {
+  const text = values.map(searchText).join(' ');
+  return /1\s*pl/.test(text) && (/(?:s\s*\/\s*b|sin\s+brazo)/.test(text));
+}
+
 function isPouff(values) {
   return /\bpouf{1,2}s?\b/.test(values.map(searchText).join(' '));
+}
+
+function isArmchair(values) {
+  return /\bsillon(?:es)?\b/.test(values.map(searchText).join(' '));
+}
+
+function isSofa(values) {
+  return /\bsofas?\b/.test(values.map(searchText).join(' '));
 }
 
 function isChaiselongue(values) {
@@ -43,7 +61,17 @@ function isLeather(values) {
   return /\bpiel\b|\bleather\b/.test(values.map(searchText).join(' '));
 }
 
+function mechanismFilterId(values) {
+  const text = values.map(searchText).join(' ');
+  if (/\brelax\b/.test(text)) return 'relax';
+  if (/\bdeslizante\b/.test(text)) return 'sliding';
+  return 'fixed';
+}
+
 const diagramFilterOptions = [
+  { id: 'sofa', label: 'Sofá', source: '/assets/sofa.png' },
+  { id: 'armchair', label: 'Sillón', source: '/assets/sillon.png' },
+  { id: 'one-seat-no-arm', label: '1 plaza sin brazo', source: '/assets/mod-1-pl-sin-brazo.png' },
   { id: 'one-seat-arm-left', label: '1 plaza con brazo izquierdo', source: '/assets/mod-1-pl-con-brazo.png', mirrored: true },
   { id: 'one-seat-arm-right', label: '1 plaza con brazo derecho', source: '/assets/mod-1-pl-con-brazo.png' },
   { id: 'two-three-seat-arm-left', label: '2 o 3 plazas con brazo izquierdo', source: '/assets/mod-2-3-pl-con-brazo.png', mirrored: true },
@@ -56,8 +84,10 @@ const diagramFilterOptions = [
 ];
 
 const moduleTypeOptions = [
+  { id: 'sofa', label: 'Sofá', source: '/assets/sofa.png' },
+  { id: 'armchair', label: 'Sillón', source: '/assets/sillon.png' },
   { id: 'one-seat-arm', label: '1 plaza con brazo', source: '/assets/mod-1-pl-con-brazo.png' },
-  { id: 'one-seat-no-arm', label: '1 plaza sin brazo' },
+  { id: 'one-seat-no-arm', label: '1 plaza sin brazo', source: '/assets/mod-1-pl-sin-brazo.png' },
   { id: 'two-three-seat-arm', label: '2–3 plazas con brazo', source: '/assets/mod-2-3-pl-con-brazo.png' },
   { id: 'chaiselongue', label: 'Chaiselongue', source: '/assets/chaiselongue.png' },
   { id: 'one-seat-terminal', label: '1 plaza terminal', source: '/assets/mod-1-pl-terminal.png' },
@@ -66,6 +96,9 @@ const moduleTypeOptions = [
 ];
 
 const diagramFiltersByModuleType = {
+  sofa: ['sofa'],
+  armchair: ['armchair'],
+  'one-seat-no-arm': ['one-seat-no-arm'],
   'one-seat-arm': ['one-seat-arm-left', 'one-seat-arm-right'],
   'two-three-seat-arm': ['two-three-seat-arm-left', 'two-three-seat-arm-right'],
   chaiselongue: ['chaiselongue-left', 'chaiselongue-right'],
@@ -74,11 +107,14 @@ const diagramFiltersByModuleType = {
 };
 
 function moduleDiagramFilterId(values) {
+  if (isSofa(values)) return 'sofa';
+  if (isArmchair(values)) return 'armchair';
   if (isPouff(values)) return 'pouff';
 
   const rightArm = hasRightArm(values);
   if (isChaiselongue(values)) return rightArm ? 'chaiselongue-right' : 'chaiselongue-left';
   if (isOneSeatTerminal(values)) return rightArm ? 'one-seat-terminal-right' : 'one-seat-terminal-left';
+  if (isOneSeatModuleWithoutArm(values)) return 'one-seat-no-arm';
   if (!isOneToThreeSeatModuleWithArm(values)) return null;
 
   const isOneSeat = /1\s*pl/.test(values.map(searchText).join(' '));
@@ -88,9 +124,12 @@ function moduleDiagramFilterId(values) {
 
 function moduleTypeFilterId(values) {
   const text = values.map(searchText).join(' ');
+  if (isSofa(values)) return 'sofa';
+  if (isArmchair(values)) return 'armchair';
   if (isPouff(values)) return 'pouff';
   if (isChaiselongue(values)) return 'chaiselongue';
   if (isOneSeatTerminal(values)) return 'one-seat-terminal';
+  if (isOneSeatModuleWithoutArm(values)) return 'one-seat-no-arm';
   if (isOneToThreeSeatModuleWithArm(values)) {
     return /1\s*pl/.test(text) ? 'one-seat-arm' : 'two-three-seat-arm';
   }
@@ -118,9 +157,12 @@ function hasRightArm(values) {
 
 function ModuleDiagram({ values }) {
   const text = values.map(searchText).join(' ');
+  const sofa = isSofa(values);
+  const armchair = isArmchair(values);
   const pouff = isPouff(values);
   const chaiselongue = isChaiselongue(values);
   const oneSeatTerminal = isOneSeatTerminal(values);
+  const oneSeatNoArm = isOneSeatModuleWithoutArm(values);
   const leftArm = hasLeftArm(values);
   const rightArm = hasRightArm(values);
   const usesLeftBaseDiagram = chaiselongue || oneSeatTerminal;
@@ -128,21 +170,33 @@ function ModuleDiagram({ values }) {
     ? rightArm ? 'derecho' : 'izquierdo'
     : leftArm ? 'izquierdo' : 'derecho';
   const isOneSeat = /1\s*pl/.test(text);
-  const source = pouff
+  const source = sofa
+    ? '/assets/sofa.png'
+    : armchair
+    ? '/assets/sillon.png'
+    : pouff
     ? '/assets/pouff.png'
     : chaiselongue
       ? '/assets/chaiselongue.png'
       : oneSeatTerminal
         ? '/assets/mod-1-pl-terminal.png'
+      : oneSeatNoArm
+        ? '/assets/mod-1-pl-sin-brazo.png'
       : isOneSeat
         ? '/assets/mod-1-pl-con-brazo.png'
         : '/assets/mod-2-3-pl-con-brazo.png';
-  const label = pouff
+  const label = sofa
+    ? 'Sofá'
+    : armchair
+    ? 'Sillón'
+    : pouff
     ? 'Pouff'
     : chaiselongue
       ? `Chaiselongue con brazo ${sideLabel}`
       : oneSeatTerminal
         ? `Módulo de 1 plaza terminal ${sideLabel}`
+      : oneSeatNoArm
+        ? 'Módulo de 1 plaza sin brazo'
       : `Módulo de ${isOneSeat ? '1' : '2 o 3'} plazas con brazo ${sideLabel}`;
   const shouldMirror = usesLeftBaseDiagram ? rightArm : leftArm && !pouff;
 
@@ -162,10 +216,15 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [searchQuery, setSearchQuery] = useState('');
   const [materialFilter, setMaterialFilter] = useState('');
   const [moduleTypeFilter, setModuleTypeFilter] = useState('');
+  const [mechanismFilter, setMechanismFilter] = useState('');
   const [diagramFilter, setDiagramFilter] = useState('');
+  const [preview, setPreview] = useState(null);
   const [lines, setLines] = useState({});
   const [legacySelections, setLegacySelections] = useState({});
   const modelSelectRef = useRef(null);
+  const customerSelectRef = useRef(null);
+  const orderDateRef = useRef(null);
+  const notesRef = useRef(null);
   const cartRef = useRef(null);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === modelId),
@@ -190,8 +249,9 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       || materialFilter === 'fabric' && isFabric(searchable)
       || materialFilter === 'leather' && isLeather(searchable);
     const matchesType = !moduleTypeFilter || moduleTypeFilterId(searchable) === moduleTypeFilter;
+    const matchesMechanism = !mechanismFilter || mechanismFilterId(searchable) === mechanismFilter;
     const matchesDiagram = !diagramFilter || moduleDiagramFilterId(searchable) === diagramFilter;
-    return matchesText && matchesMaterial && matchesType && matchesDiagram;
+    return matchesText && matchesMaterial && matchesType && matchesMechanism && matchesDiagram;
   });
   const cartEntries = Object.entries(lines).filter(([, line]) => line.quantity > 0);
   const totalUnits = cartEntries.reduce((sum, [, line]) => sum + line.quantity, 0);
@@ -206,6 +266,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     setSearchQuery('');
     setMaterialFilter('');
     setModuleTypeFilter('');
+    setMechanismFilter('');
     setDiagramFilter('');
   }
 
@@ -261,11 +322,28 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     });
   }
 
+  function openOrderPreview() {
+    const customer = customers.find((item) => item.id === customerSelectRef.current?.value);
+    setPreview({
+      customer: customer ? `${customer.client_code} - ${customer.trade_name}` : 'Sin seleccionar',
+      orderDate: formatOrderDate(orderDateRef.current?.value),
+      fabric: selectedFabric ? `${selectedFabric.code} - ${selectedFabric.name} (${selectedFabric.type === 'P' ? 'Piel' : 'Tela'})` : 'Sin seleccionar',
+      notes: notesRef.current?.value.trim() || 'Sin notas adicionales.',
+      lines: cartEntries.map(([, line]) => ({
+        code: line.displayName,
+        description: line.displayDescription,
+        details: line.displayDetails,
+        model: line.displayModel,
+        quantity: line.quantity
+      }))
+    });
+  }
+
   return (
     <form action={action} className="order-form">
       <div className="order-form-grid">
-        <label className="order-customer-select">Cliente<select name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
-        <label>Fecha del pedido<input name="orderDate" type="date" defaultValue={today()} required /></label>
+        <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
+        <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={today()} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
         <label>Tejido<select name="catalogFabricId" value={fabricId} onChange={(event) => changeFabric(event.target.value)} required><option value="" disabled>Selecciona tela o piel</option>{fabrics.map((fabric) => <option key={fabric.id} value={fabric.id}>{fabric.code} - {fabric.name} ({fabric.type === 'P' ? 'Piel' : 'Tela'})</option>)}</select></label>
       </div>
@@ -303,6 +381,15 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
                   ))}
                 </div>
               </div>
+              <div className="catalog-filter-question">
+                <p>3. ¿Qué mecanismo necesitas?</p>
+                <div className="catalog-filter-buttons">
+                  <button className={!mechanismFilter ? 'is-selected' : ''} type="button" onClick={() => setMechanismFilter('')} aria-pressed={!mechanismFilter}>Todos</button>
+                  <button className={mechanismFilter === 'fixed' ? 'is-selected' : ''} type="button" onClick={() => setMechanismFilter('fixed')} aria-pressed={mechanismFilter === 'fixed'}>Fijo</button>
+                  <button className={mechanismFilter === 'relax' ? 'is-selected' : ''} type="button" onClick={() => setMechanismFilter('relax')} aria-pressed={mechanismFilter === 'relax'}>Relax</button>
+                  <button className={mechanismFilter === 'sliding' ? 'is-selected' : ''} type="button" onClick={() => setMechanismFilter('sliding')} aria-pressed={mechanismFilter === 'sliding'}>Deslizante</button>
+                </div>
+              </div>
             </section>
             <label className="order-catalog-search">
               Buscar módulo o artículo
@@ -326,7 +413,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
                 </div>
               </fieldset>
             ) : null}
-            {searchQuery || materialFilter || moduleTypeFilter || diagramFilter ? <p className="order-catalog-result-count">{filteredEntries.length} de {catalogEntries.length} elementos</p> : null}
+            {searchQuery || materialFilter || moduleTypeFilter || mechanismFilter || diagramFilter ? <p className="order-catalog-result-count">{filteredEntries.length} de {catalogEntries.length} elementos</p> : null}
             <div className="module-selection-list" aria-live="polite">
               {filteredEntries.length === 0 ? <p className="cart-empty">No hay elementos que coincidan con la búsqueda.</p> : null}
               {usesItems
@@ -380,14 +467,33 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
           </aside>
         </div>
         <div className="order-flow-actions">
-          <button className="secondary-button" type="button" disabled={!cartEntries.length} onClick={() => cartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver resumen del pedido</button>
+          <button className="secondary-button" type="button" disabled={!cartEntries.length} onClick={openOrderPreview}>Ver resumen del pedido</button>
           <button className="secondary-button" type="button" onClick={() => { modelSelectRef.current?.focus(); modelSelectRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Añadir módulos de otro modelo</button>
         </div>
       </section>
 
-      <label>Notas<textarea name="notes" maxLength="2000" rows="4" /></label>
+      <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" /></label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <button type="submit" className="primary-button" disabled={!cartEntries.length}>Enviar pedido a pedidos</button>
+      {preview ? (
+        <div className="order-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
+          <section className="order-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="order-preview-title">
+            <div className="order-preview-heading">
+              <div><p className="eyebrow">VISTA PREVIA</p><h3 id="order-preview-title">Pedido para Departamento de pedidos</h3></div>
+              <button type="button" className="order-preview-close" onClick={() => setPreview(null)} aria-label="Cerrar resumen">×</button>
+            </div>
+            <div className="order-preview-meta">
+              <div><strong>Cliente</strong><span>{preview.customer}</span></div>
+              <div><strong>Fecha solicitada</strong><span>{preview.orderDate}</span></div>
+              <div><strong>Modelo</strong><span>{selectedModel?.name || 'Sin seleccionar'}</span></div>
+              <div><strong>Tejido</strong><span>{preview.fabric}</span></div>
+            </div>
+            <div className="order-preview-lines"><strong>Artículos solicitados</strong>{preview.lines.map((line, index) => <article key={`${line.code}-${index}`}><div><b>{line.code}</b><span>{line.model}{line.description ? ` - ${line.description}` : ''}{line.details ? ` - ${line.details}` : ''}</span></div><em>×{line.quantity}</em></article>)}</div>
+            <div className="order-preview-notes"><strong>Notas</strong><p>{preview.notes}</p></div>
+            <div className="order-preview-footer"><span>Total de unidades: <b>{totalUnits}</b></span><button type="button" className="secondary-button" onClick={() => setPreview(null)}>Seguir editando</button></div>
+          </section>
+        </div>
+      ) : null}
     </form>
   );
 }
