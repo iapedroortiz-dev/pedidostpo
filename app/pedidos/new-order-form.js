@@ -213,6 +213,8 @@ function emptyLegacySelection(module) {
 export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat }) {
   const [modelId, setModelId] = useState(models[0]?.id || '');
   const [fabricId, setFabricId] = useState('');
+  const [fabricSearch, setFabricSearch] = useState('');
+  const [attachmentError, setAttachmentError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [materialFilter, setMaterialFilter] = useState('');
   const [moduleTypeFilter, setModuleTypeFilter] = useState('');
@@ -234,6 +236,11 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     () => fabrics.find((fabric) => fabric.id === fabricId),
     [fabrics, fabricId]
   );
+  const fabricMatches = useMemo(() => {
+    const query = searchText(fabricSearch.trim());
+    if (!query) return [];
+    return fabrics.filter((fabric) => searchText(`${fabric.code} ${fabric.name}`).includes(query)).slice(0, 8);
+  }, [fabrics, fabricSearch]);
   const usesItems = catalogFormat === 'items';
   const catalogEntries = usesItems ? selectedModel?.items || [] : selectedModel?.modules || [];
   const visibleDiagramFilterOptions = moduleTypeFilter
@@ -274,6 +281,32 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     setFabricId(nextFabricId);
     const fabric = fabrics.find((item) => item.id === nextFabricId);
     setMaterialFilter(fabric?.type === 'P' ? 'leather' : fabric?.type === 'T' ? 'fabric' : '');
+  }
+
+  function selectFabric(fabric) {
+    setFabricId(fabric.id);
+    setFabricSearch(`${fabric.code} - ${fabric.name} (${fabric.type === 'P' ? 'Piel' : 'Tela'})`);
+    changeFabric(fabric.id);
+  }
+
+  function searchFabric(value) {
+    setFabricSearch(value);
+    if (fabricId) {
+      setFabricId('');
+      setMaterialFilter('');
+    }
+  }
+
+  function validateAttachment(event) {
+    const file = event.target.files?.[0];
+    if (!file) return setAttachmentError('');
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!validTypes.includes(file.type) || file.size > 3 * 1024 * 1024) {
+      event.target.value = '';
+      setAttachmentError('El adjunto debe ser PDF, JPG, JPEG o PNG y no superar 3 MB.');
+      return;
+    }
+    setAttachmentError('');
   }
 
   function adjustLine(key, amount, defaults) {
@@ -340,12 +373,12 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   return (
-    <form action={action} className="order-form">
+    <form action={action} className="order-form" encType="multipart/form-data">
       <div className="order-form-grid">
         <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
         <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={today()} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
-        <label>Tejido<select name="catalogFabricId" value={fabricId} onChange={(event) => changeFabric(event.target.value)} required><option value="" disabled>Selecciona tela o piel</option>{fabrics.map((fabric) => <option key={fabric.id} value={fabric.id}>{fabric.code} - {fabric.name} ({fabric.type === 'P' ? 'Piel' : 'Tela'})</option>)}</select></label>
+        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido</label><input id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{fabricId ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricId(''); setFabricSearch(''); setMaterialFilter(''); }}>Quitar selección</button> : null}<input type="hidden" name="catalogFabricId" value={fabricId} />{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric) => <button type="button" key={fabric.id} role="option" aria-selected={fabric.id === fabricId} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
       </div>
 
       <section className="module-selection" aria-labelledby="catalog-selection-title">
@@ -473,6 +506,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       </section>
 
       <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" /></label>
+      <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span><input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <button type="submit" className="primary-button" disabled={!cartEntries.length}>Enviar pedido a pedidos</button>
       {preview ? (

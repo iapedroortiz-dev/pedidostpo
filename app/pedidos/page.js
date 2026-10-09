@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { advanceOrderStatus, createOrder } from './actions';
 import NewOrderForm from './new-order-form';
 import { createClient } from '../../lib/supabase/server';
+import { createAdminClient } from '../../lib/supabase/admin';
 
 const roleLabels = {
   admin: 'Administrador',
@@ -145,10 +146,11 @@ async function publishedCatalog(supabase) {
 
 export default async function OrdersPage({ searchParams }) {
   const params = (await searchParams) || {};
+  const targetOrderId = messageFrom(params.order);
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
-  if (!userId) redirect('/login');
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/pedidos${targetOrderId ? `?order=${targetOrderId}` : ''}`)}`);
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -169,8 +171,21 @@ export default async function OrdersPage({ searchParams }) {
     : { data: [] };
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity)')
+    .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_attachments(id, original_name, storage_path)')
     .order('created_at', { ascending: false });
+  const attachmentLinks = new Map();
+  if (canManage) {
+    const attachmentPaths = (orders || []).flatMap((order) => order.order_attachments || []);
+    if (attachmentPaths.length) {
+      const admin = createAdminClient();
+      await Promise.all(attachmentPaths.map(async (attachment) => {
+        const { data } = await admin.storage
+          .from('order-attachments')
+          .createSignedUrl(attachment.storage_path, 60 * 15);
+        if (data?.signedUrl) attachmentLinks.set(attachment.id, data.signedUrl);
+      }));
+    }
+  }
   const error = messageFrom(params.error);
   const message = messageFrom(params.message);
 
@@ -192,7 +207,7 @@ export default async function OrdersPage({ searchParams }) {
         <div className="orders-panel-content">{catalog?.models?.length && catalog?.fabrics?.length && customers?.length ? <NewOrderForm models={catalog.models} fabrics={catalog.fabrics} customers={customers} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">{catalog?.models?.length ? catalog?.fabrics?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'El catálogo publicado no incluye tejidos. Importa una nueva versión con la hoja TEJIDOS.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</div>
       </details> : null}
 
-      <details className="orders-panel orders-panel-disclosure">
+      <details className="orders-panel orders-panel-disclosure" open={Boolean(targetOrderId)}>
         <summary className="orders-panel-summary"><div><p className="eyebrow">{canManage ? 'BANDEJA OPERATIVA' : 'MIS PEDIDOS'}</p><h2>{canManage ? 'Todos los pedidos' : 'Mis pedidos'}</h2><span>{canManage ? 'Consulta y gestiona los pedidos recibidos.' : 'Consulta el estado de los pedidos que has enviado.'}</span></div><div className="orders-panel-summary-side"><span className="orders-count">{(orders || []).length}</span><b>Ver pedidos</b></div></summary>
         <div className="orders-panel-content">
         <div className="orders-list-heading"><div><p className="eyebrow">{canManage ? 'BANDEJA OPERATIVA' : 'MIS PEDIDOS'}</p><h2>{canManage ? 'Todos los pedidos' : 'Pedidos enviados'}</h2></div><span className="orders-count">{(orders || []).length}</span></div>
@@ -201,7 +216,7 @@ export default async function OrdersPage({ searchParams }) {
             const quantity = (order.order_lines || []).reduce((sum, line) => sum + line.quantity, 0);
             const nextStatus = order.status === 'pendiente' ? 'confirmado' : order.status === 'confirmado' ? 'en_fabricacion' : order.status === 'en_fabricacion' ? 'servido' : null;
             return (
-              <article className="order-row" key={order.id}>
+              <article className={`order-row${order.id === targetOrderId ? ' is-targeted' : ''}`} id={`pedido-${order.order_number}`} key={order.id}>
                 <div className="order-row-summary">
                   <strong>Pedido #{order.order_number}</strong>
                   <p>{order.client_name} - {order.client_code}</p>
@@ -209,11 +224,12 @@ export default async function OrdersPage({ searchParams }) {
                   {order.fabric_name ? <small>Tejido: {order.fabric_code} - {order.fabric_name} ({order.fabric_type === 'P' ? 'Piel' : 'Tela'})</small> : null}
                   <small>Registrado: {formatCreatedAt(order.created_at)}</small>
                   {canManage ? (
-                    <details className="order-detail">
+                    <details className="order-detail" open={order.id === targetOrderId}>
                       <summary>Ver detalle del pedido</summary>
                       <div className="order-detail-content">
                         <div><strong>Tejido</strong><p>{order.fabric_name ? `${order.fabric_code} - ${order.fabric_name} (${order.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</p></div>
                         <div><strong>Notas</strong><p>{order.notes || 'Sin notas adicionales.'}</p></div>
+                        {(order.order_attachments || []).length ? <div><strong>Adjuntos</strong><ul className="order-attachment-list">{order.order_attachments.map((attachment) => <li key={attachment.id}>{attachmentLinks.get(attachment.id) ? <a href={attachmentLinks.get(attachment.id)} target="_blank" rel="noreferrer">{attachment.original_name}</a> : <span>{attachment.original_name}</span>}</li>)}</ul></div> : null}
                         <div>
                           <strong>Artículos</strong>
                           <ol className="order-detail-lines">

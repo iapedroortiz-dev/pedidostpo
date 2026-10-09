@@ -7,9 +7,20 @@ import { createAdminClient } from '../../lib/supabase/admin';
 import { sendNewOrderEmail } from '../../lib/order-notification';
 
 const allowedSides = new Set(['izquierda', 'derecha']);
+const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+const maxAttachmentSize = 3 * 1024 * 1024;
 
 function redirectWithError(message) {
   redirect(`/pedidos?error=${encodeURIComponent(message)}`);
+}
+
+function safeAttachmentName(value) {
+  return String(value || 'adjunto')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || 'adjunto';
 }
 
 function normalizedSide(value) {
@@ -162,13 +173,18 @@ export async function createOrder(formData) {
   const customerId = String(formData.get('customerId') || '').trim();
   const orderDate = String(formData.get('orderDate') || '').trim();
   const notes = String(formData.get('notes') || '').trim();
+  const attachment = formData.get('attachment');
   const catalogModelId = String(formData.get('catalogModelId') || '').trim();
   const catalogFabricId = String(formData.get('catalogFabricId') || '').trim();
   if (!customerId || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
     redirectWithError('Completa el cliente y la fecha del pedido.');
   }
-  if (!catalogModelId || !catalogFabricId || notes.length > 2000) {
+  if (!catalogModelId || notes.length > 2000) {
     redirectWithError('Los datos del pedido no son validos.');
+  }
+  const hasAttachment = attachment && typeof attachment === 'object' && attachment.size > 0;
+  if (hasAttachment && (!allowedAttachmentTypes.has(attachment.type) || attachment.size > maxAttachmentSize)) {
+    redirectWithError('El adjunto debe ser PDF, JPG, JPEG o PNG y no superar 3 MB.');
   }
   const requestedLines = parseRequestedLines(formData);
 
@@ -189,14 +205,18 @@ export async function createOrder(formData) {
     .maybeSingle();
   if (!publishedVersion) redirectWithError('No hay un catalogo publicado disponible.');
 
-  const { data: fabric } = await supabase
-    .from('catalog_fabrics')
-    .select('id, code, name, fabric_type')
-    .eq('id', catalogFabricId)
-    .eq('catalog_version_id', publishedVersion.id)
-    .maybeSingle();
-  if (!fabric) {
-    redirectWithError('Selecciona un tejido válido del catálogo publicado.');
+  let fabric = null;
+  if (catalogFabricId) {
+    const { data: selectedFabric } = await supabase
+      .from('catalog_fabrics')
+      .select('id, code, name, fabric_type')
+      .eq('id', catalogFabricId)
+      .eq('catalog_version_id', publishedVersion.id)
+      .maybeSingle();
+    if (!selectedFabric) {
+      redirectWithError('El tejido seleccionado ya no pertenece al catálogo publicado.');
+    }
+    fabric = selectedFabric;
   }
 
   const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
@@ -235,10 +255,10 @@ export async function createOrder(formData) {
       catalog_version_id: publishedVersion.id,
       catalog_model_id: orderModelId,
       model_name: orderModelName,
-      catalog_fabric_id: fabric.id,
-      fabric_code: fabric.code,
-      fabric_name: fabric.name,
-      fabric_type: fabric.fabric_type,
+      catalog_fabric_id: fabric?.id || null,
+      fabric_code: fabric?.code || null,
+      fabric_name: fabric?.name || null,
+      fabric_type: fabric?.fabric_type || null,
       customer_id: customer.id,
       client_code: customer.client_code,
       client_name: customer.trade_name,
@@ -261,6 +281,37 @@ export async function createOrder(formData) {
     redirectWithError('El pedido no se pudo completar. Contacta con administracion.');
   }
 
+  let attachmentNotice = '';
+  if (hasAttachment) {
+    const admin = createAdminClient();
+    const storagePath = `${order.id}/${Date.now()}-${safeAttachmentName(attachment.name)}`;
+    const { error: uploadError } = await admin.storage
+      .from('order-attachments')
+      .upload(storagePath, Buffer.from(await attachment.arrayBuffer()), {
+        contentType: attachment.type,
+        upsert: false
+      });
+    if (uploadError) {
+      console.error('No se pudo subir el adjunto del pedido:', uploadError);
+      attachmentNotice = ' El pedido se ha registrado, pero no se pudo subir el adjunto.';
+    } else {
+      const { error: attachmentError } = await admin
+        .from('order_attachments')
+        .insert({
+          order_id: order.id,
+          original_name: attachment.name,
+          storage_path: storagePath,
+          content_type: attachment.type,
+          size_bytes: attachment.size
+        });
+      if (attachmentError) {
+        console.error('No se pudo registrar el adjunto del pedido:', attachmentError);
+        await admin.storage.from('order-attachments').remove([storagePath]);
+        attachmentNotice = ' El pedido se ha registrado, pero no se pudo guardar el adjunto.';
+      }
+    }
+  }
+
   let emailNotice = '';
   try {
     const emailResult = await sendNewOrderEmail({
@@ -281,7 +332,7 @@ export async function createOrder(formData) {
   }
 
   revalidatePath('/pedidos');
-  redirect(`/pedidos?message=${encodeURIComponent(`Pedido #${order.order_number} creado correctamente.${emailNotice}`)}`);
+  redirect(`/pedidos?message=${encodeURIComponent(`Pedido #${order.order_number} creado correctamente.${attachmentNotice}${emailNotice}`)}`);
 }
 
 export async function advanceOrderStatus(formData) {

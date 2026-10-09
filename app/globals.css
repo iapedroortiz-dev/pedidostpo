@@ -431,6 +431,22 @@ h2 {
   font-weight: 600;
 }
 
+.order-attachment-field span { color: #617268; font-size: 0.78rem; font-weight: 400; }
+.order-attachment-field small { color: #a0231b; font-size: 0.78rem; }
+.order-attachment-list { display: grid; gap: 6px; margin: 7px 0 0; padding-left: 18px; }
+.order-attachment-list a { color: #147747; font-weight: 700; }
+
+.fabric-search-field { position: relative; display: grid; gap: 8px; color: #344055; font-weight: 600; }
+.fabric-search-field input { width: 100%; }
+.fabric-search-results { position: absolute; z-index: 8; top: calc(100% + 2px); right: 0; left: 0; max-height: 260px; overflow-y: auto; border: 1px solid #b9cec0; border-radius: 9px; background: #fff; box-shadow: 0 12px 26px rgb(21 46 30 / 16%); }
+.fabric-search-results button { display: grid; width: 100%; gap: 2px; padding: 10px 12px; border: 0; border-bottom: 1px solid #e3ece5; color: #26382d; background: #fff; cursor: pointer; text-align: left; font: inherit; }
+.fabric-search-results button:last-child { border-bottom: 0; }
+.fabric-search-results button:hover, .fabric-search-results button[aria-selected="true"] { background: #edf8f0; }
+.fabric-search-results button span { color: #617268; font-size: 0.78rem; font-weight: 400; }
+.fabric-search-hint { margin: -2px 0 0; color: #617268; font-size: 0.75rem; font-weight: 400; line-height: 1.35; }
+.fabric-search-warning { margin: 0; padding: 9px 10px; border-radius: 8px; color: #895500; background: #fff3db; font-size: 0.78rem; font-weight: 500; }
+.fabric-search-clear { justify-self: start; padding: 0; border: 0; color: #147747; background: transparent; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700; }
+
 .order-form input,
 .order-form select,
 .order-form textarea,
@@ -652,6 +668,8 @@ h2 {
   flex-wrap: wrap;
   gap: 10px;
 }
+
+.order-row.is-targeted { border-color: #76b98b; box-shadow: 0 0 0 3px rgb(20 119 71 / 13%); }
 
 .order-flow-actions .secondary-button {
   border: 0;
