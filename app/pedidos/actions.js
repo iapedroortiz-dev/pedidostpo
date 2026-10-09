@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
 import { createAdminClient } from '../../lib/supabase/admin';
@@ -314,13 +315,19 @@ export async function createOrder(formData) {
 
   let emailNotice = '';
   try {
+    const requestHeaders = await headers();
+    const localHost = requestHeaders.get('host');
+    const developmentUrl = process.env.NODE_ENV === 'development' && localHost
+      ? `http://${localHost}`
+      : '';
     const emailResult = await sendNewOrderEmail({
       admin: createAdminClient(),
       order: { ...order, order_date: orderDate, model_name: orderModelName, notes },
       customer,
       fabric,
       lines,
-      representative: profile
+      representative: profile,
+      developmentUrl
     });
     if (!emailResult.sent) {
       console.warn('Aviso de pedido no enviado:', emailResult.reason);
@@ -338,7 +345,7 @@ export async function createOrder(formData) {
 export async function advanceOrderStatus(formData) {
   const orderId = String(formData.get('orderId') || '').trim();
   const status = String(formData.get('status') || '').trim();
-  if (!orderId || !['confirmado', 'en_fabricacion', 'servido'].includes(status)) {
+  if (!orderId || status !== 'gestionado') {
     redirectWithError('El cambio de estado no es valido.');
   }
 

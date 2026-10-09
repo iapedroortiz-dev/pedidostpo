@@ -12,9 +12,7 @@ const roleLabels = {
 };
 const statusLabels = {
   pendiente: 'Pendiente',
-  confirmado: 'Confirmado',
-  en_fabricacion: 'En fabricacion',
-  servido: 'Servido'
+  gestionado: 'Gestionado'
 };
 
 function messageFrom(value) {
@@ -161,18 +159,22 @@ export default async function OrdersPage({ searchParams }) {
 
   const canCreate = ['representante', 'admin'].includes(profile.role);
   const canManage = ['pedidos', 'admin'].includes(profile.role);
-  const catalog = canCreate ? await publishedCatalog(supabase) : null;
-  const { data: customers } = canCreate
-    ? await supabase
-        .from('customers')
-        .select('id, client_code, trade_name')
-        .eq('active', true)
-        .order('trade_name')
-    : { data: [] };
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_attachments(id, original_name, storage_path)')
-    .order('created_at', { ascending: false });
+  const [catalog, customersResult, ordersResult] = await Promise.all([
+    canCreate ? publishedCatalog(supabase) : Promise.resolve(null),
+    canCreate
+      ? supabase
+          .from('customers')
+          .select('id, client_code, trade_name')
+          .eq('active', true)
+          .order('trade_name')
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('orders')
+      .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_attachments(id, original_name, storage_path)')
+      .order('created_at', { ascending: false })
+  ]);
+  const customers = customersResult.data;
+  const orders = ordersResult.data;
   const attachmentLinks = new Map();
   if (canManage) {
     const attachmentPaths = (orders || []).flatMap((order) => order.order_attachments || []);
@@ -214,7 +216,7 @@ export default async function OrdersPage({ searchParams }) {
         <div className="orders-list">
           {(orders || []).map((order) => {
             const quantity = (order.order_lines || []).reduce((sum, line) => sum + line.quantity, 0);
-            const nextStatus = order.status === 'pendiente' ? 'confirmado' : order.status === 'confirmado' ? 'en_fabricacion' : order.status === 'en_fabricacion' ? 'servido' : null;
+            const nextStatus = order.status === 'pendiente' ? 'gestionado' : null;
             return (
               <article className={`order-row${order.id === targetOrderId ? ' is-targeted' : ''}`} id={`pedido-${order.order_number}`} key={order.id}>
                 <div className="order-row-summary">
@@ -246,7 +248,7 @@ export default async function OrdersPage({ searchParams }) {
                     </details>
                   ) : null}
                 </div>
-                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">{nextStatus === 'confirmado' ? 'Confirmar' : nextStatus === 'en_fabricacion' ? 'Enviar a fabricacion' : 'Marcar como servido'}</button></form> : null}</div>
+                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">Marcar como gestionado</button></form> : null}</div>
               </article>
             );
           })}

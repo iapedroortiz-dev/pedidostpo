@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import SubmitOrderButton from './submit-order-button';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -508,7 +509,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" /></label>
       <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span><input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
-      <button type="submit" className="primary-button" disabled={!cartEntries.length}>Enviar pedido a pedidos</button>
+      <SubmitOrderButton disabled={!cartEntries.length} />
       {preview ? (
         <div className="order-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
           <section className="order-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="order-preview-title">

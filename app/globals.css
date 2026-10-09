@@ -676,6 +676,14 @@ h2 {
   cursor: pointer;
 }
 
+.order-submit-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.button-spinner, .orders-loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: order-spinner 700ms linear infinite; }
+.orders-loading-card { display: flex; align-items: center; gap: 16px; min-height: 150px; margin-top: 32px; padding: 28px 32px; border: 1px solid #dce8df; border-radius: 16px; background: #fff; box-shadow: 0 12px 32px rgb(19 79 45 / 8%); }
+.orders-loading-card h1 { margin: 3px 0 5px; }
+.orders-loading-card p:last-child { margin: 0; color: #617268; }
+.orders-loading-spinner { width: 30px; height: 30px; color: #147747; border-width: 3px; }
+@keyframes order-spinner { to { transform: rotate(360deg); } }
+
 .order-preview-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(12, 28, 20, 0.48); }
 .order-preview-dialog { width: min(100%, 700px); max-height: min(760px, calc(100vh - 40px)); overflow: auto; padding: 24px; border: 1px solid #c9d9cf; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(10, 35, 22, 0.25); }
 .order-preview-heading, .order-preview-footer, .order-preview-lines article { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -906,6 +914,10 @@ h2 {
 }
 
 .status-en_fabricacion {
+  color: #17633a;
+  background: #e4f7eb;
+}
+.status-gestionado {
   color: #17633a;
   background: #e4f7eb;
 }
@@ -1245,6 +1257,7 @@ body { background: #eef1ed; color: #1d2922; }
 .status-pendiente { color: #956210; background: #fff1d6; }
 .status-confirmado { color: #146c41; background: #e5f3e9; }
 .status-en_fabricacion { color: #17633a; background: #e3f5e8; }
+.status-gestionado { color: #17633a; background: #e3f5e8; }
 .status-servido { color: #475569; background: #e8edf2; }
 .status-bar-track { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: #edf2ee; }
 .status-bar-track > span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: #6fbc87; }

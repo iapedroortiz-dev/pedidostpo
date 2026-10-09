@@ -69,10 +69,10 @@ export async function deleteCatalogVersion(formData) {
     .from('orders')
     .select('id', { count: 'exact', head: true })
     .eq('catalog_version_id', catalogVersionId)
-    .neq('status', 'servido');
+    .neq('status', 'gestionado');
   if (ordersError) throw ordersError;
   if (orderCount) {
-    redirect('/catalog?error=No%20se%20puede%20eliminar%20una%20tarifa%20con%20pedidos%20aún%20no%20servidos.');
+    redirect('/catalog?error=No%20se%20puede%20eliminar%20una%20tarifa%20con%20pedidos%20pendientes.');
   }
 
   const { data: imports, error: importsError } = await admin
@@ -149,10 +149,10 @@ export async function deleteCatalogModels(formData) {
     .from('orders')
     .select('id', { count: 'exact', head: true })
     .in('catalog_model_id', modelIds)
-    .neq('status', 'servido');
+    .neq('status', 'gestionado');
   if (activeOrdersError) throw activeOrdersError;
   if (activeOrderCount) {
-    redirect('/catalog?error=No%20se%20pueden%20eliminar%20modelos%20con%20pedidos%20aún%20no%20servidos.');
+    redirect('/catalog?error=No%20se%20pueden%20eliminar%20modelos%20con%20pedidos%20pendientes.');
   }
 
   const { error: deleteError } = await admin

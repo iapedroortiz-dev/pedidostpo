@@ -10,12 +10,10 @@ const roleLabels = {
 
 const statusLabels = {
   pendiente: 'Pendiente',
-  confirmado: 'Confirmado',
-  en_fabricacion: 'En fabricación',
-  servido: 'Servido'
+  gestionado: 'Gestionado'
 };
 
-const statusOrder = ['pendiente', 'confirmado', 'en_fabricacion', 'servido'];
+const statusOrder = ['pendiente', 'gestionado'];
 
 function getOrderUnits(order) {
   return (order.order_lines || []).reduce((total, line) => total + (line.quantity || 0), 0);
@@ -131,9 +129,9 @@ export default async function DashboardPage() {
             <small>Por revisar</small>
           </article>
           <article className="dashboard-stat-card is-production">
-            <span>Fabricación</span>
-            <strong>{statusCounts.en_fabricacion}</strong>
-            <small>En curso</small>
+            <span>Gestionados</span>
+            <strong>{statusCounts.gestionado}</strong>
+            <small>Completados</small>
           </article>
         </div>
 
