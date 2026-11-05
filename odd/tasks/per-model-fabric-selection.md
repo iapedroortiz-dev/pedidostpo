@@ -5,9 +5,9 @@ Branch: feat/per-model-fabric-selection · Delivery: local changes only · Runne
 S1. "Qu ecada modelo se pueda seleccionar un tejido diferente"
 
 ## Tasks
-- T1 · S1 · inline · done · Add persisted per-model fabric assignments and migration; RED/GREEN: `tests/order-model-fabrics.test.cjs`, `tests/order-model-fabric-policy.test.cjs`.
-- T2 · S1 · inline · done · Let the order form select a fabric for each model and submit assignments; RED/GREEN: `tests/order-model-fabrics.test.cjs`.
-- T3 · S1 · inline · done · Render each model's selected fabric in order details and verify the flow; RED/GREEN: `tests/order-model-fabric-email.test.cjs`.
+- T1 · S1 · inline · done · Commit `2fe2393`; add persisted per-model fabric assignments and migration; RED/GREEN: `tests/order-model-fabrics.test.cjs`, `tests/order-model-fabric-policy.test.cjs`.
+- T2 · S1 · inline · done · Commit `2fe2393`; let the order form select a fabric for each model and submit assignments; RED/GREEN: `tests/order-model-fabrics.test.cjs`.
+- T3 · S1 · inline · done · Commit `2fe2393`; render each model's selected fabric in order details and verify the flow; RED/GREEN: `tests/order-model-fabric-email.test.cjs`.
 
 ## Log
 L1. User request: "Qu ecada modelo se pueda seleccionar un tejido diferente"
