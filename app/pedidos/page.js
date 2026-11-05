@@ -167,7 +167,7 @@ export default async function OrdersPage({ searchParams }) {
       : Promise.resolve({ data: [] }),
     supabase
       .from('orders')
-      .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_attachments(id, original_name, storage_path)')
+      .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_model_fabrics(model_name, fabric_code, fabric_name, fabric_type), order_attachments(id, original_name, storage_path)')
       .order('created_at', { ascending: false })
   ]);
   const customers = customersResult.data;
@@ -220,13 +220,14 @@ export default async function OrdersPage({ searchParams }) {
                   <strong>Pedido #{order.order_number}</strong>
                   <p>{order.client_name} - {order.client_code}</p>
                   <small>{order.model_name} - {quantity} unidades - {formatDate(order.order_date)}</small>
-                  {order.fabric_name ? <small>Tejido: {order.fabric_code} - {order.fabric_name} ({order.fabric_type === 'P' ? 'Piel' : 'Tela'})</small> : null}
+                   {order.fabric_name ? <small>Tejido: {order.fabric_code} - {order.fabric_name} ({order.fabric_type === 'P' ? 'Piel' : 'Tela'})</small> : null}
+                   {(order.order_model_fabrics || []).map((modelFabric) => <small key={modelFabric.model_name}>Tejido {modelFabric.model_name}: {modelFabric.fabric_name ? `${modelFabric.fabric_code} - ${modelFabric.fabric_name} (${modelFabric.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</small>)}
                   <small>Registrado: {formatCreatedAt(order.created_at)}</small>
                   {canManage ? (
                     <details className="order-detail" open={order.id === targetOrderId}>
                       <summary>Ver detalle del pedido</summary>
                       <div className="order-detail-content">
-                        <div><strong>Tejido</strong><p>{order.fabric_name ? `${order.fabric_code} - ${order.fabric_name} (${order.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</p></div>
+                         {(order.order_model_fabrics || []).length ? <div><strong>Tejidos por modelo</strong><ul>{order.order_model_fabrics.map((modelFabric) => <li key={modelFabric.model_name}><b>{modelFabric.model_name}:</b> {modelFabric.fabric_name ? `${modelFabric.fabric_code} - ${modelFabric.fabric_name} (${modelFabric.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</li>)}</ul></div> : <div><strong>Tejido</strong><p>{order.fabric_name ? `${order.fabric_code} - ${order.fabric_name} (${order.fabric_type === 'P' ? 'Piel' : 'Tela'})` : 'No indicado'}</p></div>}
                         <div><strong>Notas</strong><p>{order.notes || 'Sin notas adicionales.'}</p></div>
                         {(order.order_attachments || []).length ? <div><strong>Adjuntos</strong><ul className="order-attachment-list">{order.order_attachments.map((attachment) => <li key={attachment.id}>{attachmentLinks.get(attachment.id) ? <a href={attachmentLinks.get(attachment.id)} target="_blank" rel="noreferrer">{attachment.original_name}</a> : <span>{attachment.original_name}</span>}</li>)}</ul></div> : null}
                         <div>

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
 import { createAdminClient } from '../../lib/supabase/admin';
 import { sendNewOrderEmail } from '../../lib/order-notification';
+import { modelFabricAssignmentsForModels } from '../../lib/order-model-fabrics';
 
 const allowedSides = new Set(['izquierda', 'derecha']);
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -66,6 +67,16 @@ function parseRequestedLines(formData) {
   return lines;
 }
 
+function parseModelFabricAssignments(formData) {
+  try {
+    const assignments = JSON.parse(String(formData.get('modelFabricAssignments') || '[]'));
+    if (!Array.isArray(assignments)) throw new Error('Invalid assignment list');
+    return assignments;
+  } catch {
+    redirectWithError('Las asignaciones de tejido no son validas.');
+  }
+}
+
 async function catalogLinesFromItems(supabase, catalogVersionId, requestedLines) {
   const itemIds = [
     ...new Set(requestedLines.map((line) => String(line?.itemId || '')).filter(Boolean))
@@ -118,7 +129,12 @@ async function catalogLinesFromItems(supabase, catalogVersionId, requestedLines)
     if (modelName && !orderedModelNames.includes(modelName)) orderedModelNames.push(modelName);
   }
 
-  return { lines, modelIds, modelNames: orderedModelNames };
+  return {
+    lines,
+    modelIds,
+    modelNames: orderedModelNames,
+    models: modelIds.map((modelId) => modelById.get(modelId)).filter(Boolean)
+  };
 }
 
 async function catalogLinesFromLegacy(supabase, catalogModelId, requestedLines) {
@@ -176,7 +192,6 @@ export async function createOrder(formData) {
   const notes = String(formData.get('notes') || '').trim();
   const attachment = formData.get('attachment');
   const catalogModelId = String(formData.get('catalogModelId') || '').trim();
-  const catalogFabricId = String(formData.get('catalogFabricId') || '').trim();
   if (!customerId || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
     redirectWithError('Completa el cliente y la fecha del pedido.');
   }
@@ -188,6 +203,7 @@ export async function createOrder(formData) {
     redirectWithError('El adjunto debe ser PDF, JPG, JPEG o PNG y no superar 3 MB.');
   }
   const requestedLines = parseRequestedLines(formData);
+  const requestedFabricAssignments = parseModelFabricAssignments(formData);
 
   const { data: customer } = await supabase
     .from('customers')
@@ -206,20 +222,6 @@ export async function createOrder(formData) {
     .maybeSingle();
   if (!publishedVersion) redirectWithError('No hay un catalogo publicado disponible.');
 
-  let fabric = null;
-  if (catalogFabricId) {
-    const { data: selectedFabric } = await supabase
-      .from('catalog_fabrics')
-      .select('id, code, name, fabric_type')
-      .eq('id', catalogFabricId)
-      .eq('catalog_version_id', publishedVersion.id)
-      .maybeSingle();
-    if (!selectedFabric) {
-      redirectWithError('El tejido seleccionado ya no pertenece al catálogo publicado.');
-    }
-    fabric = selectedFabric;
-  }
-
   const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
   const usesLegacy = requestedLines.every((line) => String(line?.variantId || '').trim());
   if (!usesItems && !usesLegacy) {
@@ -228,12 +230,14 @@ export async function createOrder(formData) {
   let lines;
   let orderModelId;
   let orderModelName;
+  let orderModels;
 
   if (usesItems) {
     const itemResult = await catalogLinesFromItems(supabase, publishedVersion.id, requestedLines);
     lines = itemResult.lines;
     orderModelId = itemResult.modelIds.length === 1 ? itemResult.modelIds[0] : null;
     orderModelName = itemResult.modelNames.join(' + ');
+    orderModels = itemResult.models;
   } else {
     const { data: catalogModel } = await supabase
       .from('catalog_models')
@@ -247,6 +251,29 @@ export async function createOrder(formData) {
     lines = await catalogLinesFromLegacy(supabase, catalogModel.id, requestedLines);
     orderModelId = catalogModel.id;
     orderModelName = catalogModel.name;
+    orderModels = [catalogModel];
+  }
+
+  const requestedFabricIds = [...new Set(requestedFabricAssignments
+    .map((assignment) => String(assignment?.catalogFabricId || '').trim())
+    .filter(Boolean))];
+  const { data: selectedFabrics, error: selectedFabricsError } = requestedFabricIds.length
+    ? await supabase
+      .from('catalog_fabrics')
+      .select('id, code, name, fabric_type')
+      .eq('catalog_version_id', publishedVersion.id)
+      .in('id', requestedFabricIds)
+    : { data: [], error: null };
+  if (selectedFabricsError) {
+    console.error('Error validando tejidos del pedido:', selectedFabricsError);
+    redirectWithError('No se pudieron validar los tejidos seleccionados.');
+  }
+
+  let modelFabricAssignments;
+  try {
+    modelFabricAssignments = modelFabricAssignmentsForModels(orderModels, requestedFabricAssignments, selectedFabrics);
+  } catch (error) {
+    redirectWithError(error.message);
   }
 
   const { data: order, error: orderError } = await supabase
@@ -256,10 +283,10 @@ export async function createOrder(formData) {
       catalog_version_id: publishedVersion.id,
       catalog_model_id: orderModelId,
       model_name: orderModelName,
-      catalog_fabric_id: fabric?.id || null,
-      fabric_code: fabric?.code || null,
-      fabric_name: fabric?.name || null,
-      fabric_type: fabric?.fabric_type || null,
+      catalog_fabric_id: null,
+      fabric_code: null,
+      fabric_name: null,
+      fabric_type: null,
       customer_id: customer.id,
       client_code: customer.client_code,
       client_name: customer.trade_name,
@@ -279,6 +306,14 @@ export async function createOrder(formData) {
     .insert(lines.map((line) => ({ ...line, order_id: order.id })));
   if (linesError) {
     console.error('Error creando lineas del pedido:', linesError);
+    redirectWithError('El pedido no se pudo completar. Contacta con administracion.');
+  }
+
+  const { error: modelFabricsError } = await supabase
+    .from('order_model_fabrics')
+    .insert(modelFabricAssignments.map((assignment) => ({ ...assignment, order_id: order.id })));
+  if (modelFabricsError) {
+    console.error('Error guardando tejidos por modelo:', modelFabricsError);
     redirectWithError('El pedido no se pudo completar. Contacta con administracion.');
   }
 
@@ -324,7 +359,8 @@ export async function createOrder(formData) {
       admin: createAdminClient(),
       order: { ...order, order_date: orderDate, model_name: orderModelName, notes },
       customer,
-      fabric,
+       fabric: null,
+       modelFabricAssignments,
       lines,
       representative: profile,
       developmentUrl

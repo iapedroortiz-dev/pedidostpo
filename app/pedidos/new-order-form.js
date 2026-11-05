@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { matchingFabrics } from '../../lib/fabric-search';
 import { bedDiagramType, isChaiselongueModule } from '../../lib/module-diagram';
+import { moveCompositionUnit } from '../../lib/order-composition';
 import SubmitOrderButton from './submit-order-button';
 
 function today() {
@@ -80,6 +81,8 @@ const diagramFilterOptions = [
   { id: 'two-three-seat-arm-left', label: '2 o 3 plazas con brazo izquierdo', source: '/assets/mod-2-3-pl-con-brazo.png', mirrored: true },
   { id: 'two-three-seat-arm-right', label: '2 o 3 plazas con brazo derecho', source: '/assets/mod-2-3-pl-con-brazo.png' },
   { id: 'pouff', label: 'Pouff', source: '/assets/pouff.png' },
+  { id: 'bed', label: 'Cama', source: '/assets/cama.png' },
+  { id: 'bed-arm', label: 'Cama con un brazo', source: '/assets/cama-con-brazo.png' },
   { id: 'chaiselongue-left', label: 'Chaiselongue izquierda', source: '/assets/chaiselongue.png' },
   { id: 'chaiselongue-right', label: 'Chaiselongue derecha', source: '/assets/chaiselongue.png', mirrored: true },
   { id: 'one-seat-terminal-left', label: '1 plaza terminal izquierda', source: '/assets/mod-1-pl-terminal.png' },
@@ -92,6 +95,8 @@ const moduleTypeOptions = [
   { id: 'one-seat-arm', label: '1 plaza con brazo', source: '/assets/mod-1-pl-con-brazo.png' },
   { id: 'one-seat-no-arm', label: '1 plaza sin brazo', source: '/assets/mod-1-pl-sin-brazo.png' },
   { id: 'two-three-seat-arm', label: '2–3 plazas con brazo', source: '/assets/mod-2-3-pl-con-brazo.png' },
+  { id: 'bed', label: 'Cama', source: '/assets/cama.png' },
+  { id: 'bed-arm', label: 'Cama con un brazo', source: '/assets/cama-con-brazo.png' },
   { id: 'chaiselongue', label: 'Chaiselongue', source: '/assets/chaiselongue.png' },
   { id: 'one-seat-terminal', label: '1 plaza terminal', source: '/assets/mod-1-pl-terminal.png' },
   { id: 'pouff', label: 'Pouff', source: '/assets/pouff.png' },
@@ -104,6 +109,8 @@ const diagramFiltersByModuleType = {
   'one-seat-no-arm': ['one-seat-no-arm'],
   'one-seat-arm': ['one-seat-arm-left', 'one-seat-arm-right'],
   'two-three-seat-arm': ['two-three-seat-arm-left', 'two-three-seat-arm-right'],
+  bed: ['bed'],
+  'bed-arm': ['bed-arm'],
   chaiselongue: ['chaiselongue-left', 'chaiselongue-right'],
   'one-seat-terminal': ['one-seat-terminal-left', 'one-seat-terminal-right'],
   pouff: ['pouff']
@@ -129,6 +136,8 @@ function moduleDiagramFilterId(values) {
 
 function moduleTypeFilterId(values) {
   const text = values.map(searchText).join(' ');
+  const bed = bedDiagramType(values);
+  if (bed) return bed;
   if (isSofa(values)) return 'sofa';
   if (isArmchair(values)) return 'armchair';
   if (isPouff(values)) return 'pouff';
@@ -171,7 +180,7 @@ function ModuleDiagram({ values }) {
   const oneSeatNoArm = isOneSeatModuleWithoutArm(values);
   const leftArm = hasLeftArm(values);
   const rightArm = hasRightArm(values);
-  const usesLeftBaseDiagram = chaiselongue || oneSeatTerminal;
+  const usesLeftBaseDiagram = chaiselongue || oneSeatTerminal || bed === 'bed-arm';
   const sideLabel = usesLeftBaseDiagram
     ? rightArm ? 'derecho' : 'izquierdo'
     : leftArm ? 'izquierdo' : 'derecho';
@@ -226,7 +235,7 @@ function emptyLegacySelection(module) {
 
 export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat }) {
   const [modelId, setModelId] = useState(models[0]?.id || '');
-  const [fabricId, setFabricId] = useState('');
+  const [fabricIdsByModel, setFabricIdsByModel] = useState({});
   const [fabricSearch, setFabricSearch] = useState('');
   const [attachmentError, setAttachmentError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -236,19 +245,23 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [diagramFilter, setDiagramFilter] = useState('');
   const [preview, setPreview] = useState(null);
   const [lines, setLines] = useState({});
+  const [compositionOrder, setCompositionOrder] = useState([]);
+  const [draggedCompositionId, setDraggedCompositionId] = useState('');
   const [legacySelections, setLegacySelections] = useState({});
   const modelSelectRef = useRef(null);
   const customerSelectRef = useRef(null);
   const orderDateRef = useRef(null);
   const notesRef = useRef(null);
   const cartRef = useRef(null);
+  const fabricSearchRef = useRef(null);
+  const compositionSequenceRef = useRef(0);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === modelId),
     [models, modelId]
   );
   const selectedFabric = useMemo(
-    () => fabrics.find((fabric) => fabric.id === fabricId),
-    [fabrics, fabricId]
+    () => fabrics.find((fabric) => fabric.id === fabricIdsByModel[modelId]),
+    [fabrics, fabricIdsByModel, modelId]
   );
   const fabricMatches = useMemo(() => {
     return matchingFabrics(fabrics, fabricSearch);
@@ -279,32 +292,54 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       ? { itemId: line.itemId, quantity: line.quantity }
       : { variantId: line.variantId, side: line.side, quantity: line.quantity }
   ));
+  const modelFabricAssignments = useMemo(() => {
+    const selectedModels = new Map();
+    cartEntries.forEach(([, line]) => {
+      if (line.catalogModelId) selectedModels.set(line.catalogModelId, line.displayModel);
+    });
+    return [...selectedModels].map(([catalogModelId]) => ({
+      catalogModelId,
+      catalogFabricId: fabricIdsByModel[catalogModelId] || ''
+    }));
+  }, [cartEntries, fabricIdsByModel]);
+  const compositionByModel = useMemo(() => {
+    const groups = new Map();
+    compositionOrder.forEach((unit) => {
+      const line = lines[unit.key];
+      if (!line || line.quantity < 1) return;
+      const modelId = line.catalogModelId || line.displayModel || 'modelo-sin-nombre';
+      if (!groups.has(modelId)) groups.set(modelId, { id: modelId, name: line.displayModel || 'Modelo sin nombre', units: [] });
+      groups.get(modelId).units.push({ ...unit, line });
+    });
+    return [...groups.values()];
+  }, [compositionOrder, lines]);
 
   function changeModel(nextModelId) {
     setModelId(nextModelId);
+    const selected = fabrics.find((fabric) => fabric.id === fabricIdsByModel[nextModelId]);
+    setFabricSearch(selected ? `${selected.code} - ${selected.name} (${selected.type === 'P' ? 'Piel' : 'Tela'})` : '');
+    setMaterialFilter(selected?.type === 'P' ? 'leather' : selected?.type === 'T' ? 'fabric' : '');
     setSearchQuery('');
-    setMaterialFilter('');
     setModuleTypeFilter('');
     setMechanismFilter('');
     setDiagramFilter('');
   }
 
   function changeFabric(nextFabricId) {
-    setFabricId(nextFabricId);
+    setFabricIdsByModel((previous) => ({ ...previous, [modelId]: nextFabricId }));
     const fabric = fabrics.find((item) => item.id === nextFabricId);
     setMaterialFilter(fabric?.type === 'P' ? 'leather' : fabric?.type === 'T' ? 'fabric' : '');
   }
 
   function selectFabric(fabric) {
-    setFabricId(fabric.id);
     setFabricSearch(`${fabric.code} - ${fabric.name} (${fabric.type === 'P' ? 'Piel' : 'Tela'})`);
     changeFabric(fabric.id);
   }
 
   function searchFabric(value) {
     setFabricSearch(value);
-    if (fabricId) {
-      setFabricId('');
+    if (selectedFabric) {
+      setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' }));
       setMaterialFilter('');
     }
   }
@@ -331,6 +366,19 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       }
       return { ...previous, [key]: { ...current, quantity } };
     });
+    setCompositionOrder((previous) => {
+      if (amount > 0) {
+        compositionSequenceRef.current += 1;
+        return [...previous, { id: `${key}:${compositionSequenceRef.current}`, key }];
+      }
+      const lastIndex = previous.map((unit) => unit.key).lastIndexOf(key);
+      return lastIndex < 0 ? previous : previous.filter((_, index) => index !== lastIndex);
+    });
+  }
+
+  function reorderComposition(targetId) {
+    setCompositionOrder((previous) => moveCompositionUnit(previous, draggedCompositionId, targetId));
+    setDraggedCompositionId('');
   }
 
   function updateLegacySelection(moduleId, field, value) {
@@ -343,6 +391,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   function addItem(item) {
     adjustLine(item.id, 1, {
       itemId: item.id,
+      catalogModelId: selectedModel?.id || '',
       quantity: 0,
       displayModel: selectedModel?.name || '',
       displayName: item.code,
@@ -358,6 +407,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     const key = `${module.id}:${variant.id}:${selection.side || 'sin-lado'}`;
     adjustLine(key, 1, {
       variantId: variant.id,
+      catalogModelId: selectedModel?.id || '',
       side: module.needsSide ? selection.side : '',
       quantity: 0,
       displayModel: selectedModel?.name || '',
@@ -372,7 +422,14 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     setPreview({
       customer: customer ? `${customer.client_code} - ${customer.trade_name}` : 'Sin seleccionar',
       orderDate: formatOrderDate(orderDateRef.current?.value),
-      fabric: selectedFabric ? `${selectedFabric.code} - ${selectedFabric.name} (${selectedFabric.type === 'P' ? 'Piel' : 'Tela'})` : 'Sin seleccionar',
+      modelFabrics: modelFabricAssignments.map((assignment) => {
+        const model = models.find((item) => item.id === assignment.catalogModelId);
+        const fabric = fabrics.find((item) => item.id === assignment.catalogFabricId);
+        return {
+          model: model?.name || 'Modelo sin nombre',
+          fabric: fabric ? `${fabric.code} - ${fabric.name} (${fabric.type === 'P' ? 'Piel' : 'Tela'})` : 'Sin seleccionar'
+        };
+      }),
       notes: notesRef.current?.value.trim() || 'Sin notas adicionales.',
       lines: cartEntries.map(([, line]) => ({
         code: line.displayName,
@@ -390,7 +447,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
         <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
         <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={today()} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
-        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido</label><input id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{fabricId ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricId(''); setFabricSearch(''); setMaterialFilter(''); }}>Quitar selección</button> : null}<input type="hidden" name="catalogFabricId" value={fabricId} />{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric) => <button type="button" key={fabric.id} role="option" aria-selected={fabric.id === fabricId} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
+        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setMaterialFilter(''); }}>Quitar selección</button> : null}{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric) => <button type="button" key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
       </div>
 
       <section className="module-selection" aria-labelledby="catalog-selection-title">
@@ -508,6 +565,41 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
                 ))}
               </div>
             ) : <p className="cart-empty">Aún no has añadido artículos.</p>}
+            {compositionByModel.length ? (
+              <section className="cart-compositions" aria-label="Composición de módulos">
+                <div><strong>Composición</strong><span>Arrastra los módulos para reordenarlos</span></div>
+                {compositionByModel.map((group) => {
+                  const fabric = fabrics.find((item) => item.id === fabricIdsByModel[group.id]);
+                  return (
+                  <section className="cart-composition-model" key={group.id} aria-label={`Composición del modelo ${group.name}`}>
+                    <div className="cart-composition-model-heading"><h4>{group.name}</h4><button type="button" onClick={() => { changeModel(group.id); fabricSearchRef.current?.focus(); }}>Elegir tejido</button></div>
+                    <p className="cart-model-fabric">Tejido: {fabric ? `${fabric.code} - ${fabric.name}` : 'Sin seleccionar'}</p>
+                    <div className="cart-composition-row">
+                      {group.units.map(({ id, line }) => {
+                        const values = [line.displayName, line.displayDescription, line.displayDetails];
+                        return (
+                          <button
+                            className="cart-composition-unit"
+                            type="button"
+                            key={id}
+                            draggable
+                            onDragStart={() => setDraggedCompositionId(id)}
+                            onDragEnd={() => setDraggedCompositionId('')}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => reorderComposition(id)}
+                            aria-label={`Reordenar ${line.displayName}`}
+                            title="Arrastra para reordenar"
+                          >
+                            {hasModuleDiagram(values) ? <ModuleDiagram values={values} /> : <span className="cart-composition-fallback">{line.displayName}</span>}
+                            <small>{line.displayName}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )})}
+              </section>
+            ) : null}
             <div className="cart-footer"><span>Total de unidades</span><strong>{totalUnits}</strong></div>
           </aside>
         </div>
@@ -520,6 +612,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" /></label>
       <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span><input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
+      <input type="hidden" name="modelFabricAssignments" value={JSON.stringify(modelFabricAssignments)} />
       <SubmitOrderButton disabled={!cartEntries.length} />
       {preview ? (
         <div className="order-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
@@ -531,8 +624,8 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
             <div className="order-preview-meta">
               <div><strong>Cliente</strong><span>{preview.customer}</span></div>
               <div><strong>Fecha solicitada</strong><span>{preview.orderDate}</span></div>
-              <div><strong>Modelo</strong><span>{selectedModel?.name || 'Sin seleccionar'}</span></div>
-              <div><strong>Tejido</strong><span>{preview.fabric}</span></div>
+              <div><strong>Modelos</strong><span>{preview.modelFabrics.map((item) => item.model).join(', ') || 'Sin seleccionar'}</span></div>
+              <div><strong>Tejidos</strong><span>{preview.modelFabrics.map((item) => `${item.model}: ${item.fabric}`).join(' · ') || 'Sin seleccionar'}</span></div>
             </div>
             <div className="order-preview-lines"><strong>Artículos solicitados</strong>{preview.lines.map((line, index) => <article key={`${line.code}-${index}`}><div><b>{line.code}</b><span>{line.model}{line.description ? ` - ${line.description}` : ''}{line.details ? ` - ${line.details}` : ''}</span></div><em>×{line.quantity}</em></article>)}</div>
             <div className="order-preview-notes"><strong>Notas</strong><p>{preview.notes}</p></div>
