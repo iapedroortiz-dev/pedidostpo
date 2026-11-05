@@ -739,6 +739,76 @@ h2 {
   display: grid;
 }
 
+.cart-compositions {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #dfe8e1;
+}
+
+.cart-compositions > div,
+.cart-composition-model {
+  display: grid;
+  gap: 6px;
+}
+
+.cart-compositions > div span,
+.cart-composition-model h4 {
+  margin: 0;
+  color: #5e6b80;
+  font-size: 0.75rem;
+}
+
+.cart-composition-model-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cart-composition-model-heading button {
+  border: 0;
+  padding: 0;
+  color: #276a42;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+}
+
+.cart-model-fabric {
+  margin: 0;
+  color: #385243;
+  font-size: 0.75rem;
+}
+
+.cart-composition-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  overflow-x: auto;
+  padding: 8px 2px;
+}
+
+.cart-composition-unit {
+  display: grid;
+  min-width: 76px;
+  padding: 4px;
+  border: 1px solid #c7d9cd;
+  border-radius: 6px;
+  color: #385243;
+  background: #fff;
+  cursor: grab;
+}
+
+.cart-composition-unit:active { cursor: grabbing; }
+.cart-composition-unit + .cart-composition-unit { margin-left: -1px; }
+.cart-composition-unit .module-seat-arm-diagram { width: 68px; height: 42px; }
+.cart-composition-unit small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.67rem; }
+.cart-composition-fallback { display: grid; min-height: 42px; place-items: center; padding: 4px; background: #fff7f4; font-size: 0.68rem; }
+
 .cart-line {
   padding: 13px 0;
   border-bottom: 1px solid #dfe8e1;
