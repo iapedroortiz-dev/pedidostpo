@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import CatalogDownloads from './catalog-downloads';
 
 export default function ImportForm() {
   const router = useRouter();
@@ -64,6 +65,8 @@ export default function ImportForm() {
 
         <button type="submit">Importar como borrador</button>
       </form>
+
+      <CatalogDownloads />
 
       {status ? <p className="catalog-status" aria-live="polite">{status}</p> : null}
     </section>

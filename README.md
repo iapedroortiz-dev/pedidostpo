@@ -48,6 +48,19 @@ El pedido conserva la versión de catálogo utilizada y sus líneas de artículo
 - `/pedidos`: creación de pedidos y bandeja de pedidos visibles para el usuario.
 - `/catalog`: importación, consulta y publicación de versiones de catálogo; solo para administradores.
 - `/usuarios`: alta, edición, activación y asignación de roles de usuarios operativos; solo para administradores.
+- `/ayuda`: manual visual por tareas, accesible desde **Ayuda** en el menú. Los representantes consultan creación y seguimiento; el departamento de pedidos, revisión y gestión. Administración puede consultar ambas guías.
+
+### Manual visual de ayuda
+
+La ayuda incluye pasos breves, capturas ampliables con datos ficticios e indicaciones para resolver incidencias. No es un entorno de práctica: las acciones realizadas en las pantallas operativas siguen afectando a los datos del entorno conectado.
+
+Las capturas se obtienen de los componentes reales en una demostración local aislada, sin consultar Supabase ni utilizar cuentas reales. Para regenerarlas o comprobar el manual, consulte [las instrucciones de captura](public/assets/help/README.md). Las guías extensas permanecen en [docs/onboarding](docs/onboarding).
+
+Pruebas de acceso, contenido por perfil, navegación y recursos del manual:
+
+```powershell
+node --test tests/help.test.cjs
+```
 
 ## Tecnología
 
@@ -69,6 +82,21 @@ Configura los valores de `.env.local` sin incluirlos nunca en Git:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SECRET_KEY=
+```
+
+## Plantilla y exportación de catálogo
+
+En **Catálogo → Archivos de trabajo**, el perfil administrador puede descargar:
+
+- **Plantilla Excel:** contiene las hojas `PRODUCTOS`, `CLIENTES` y `TEJIDOS` con los encabezados y filas de ejemplo requeridos. Elimine las filas de ejemplo antes de importar. `Representante` es opcional y, si se indica, debe ser el correo de una cuenta existente.
+- **Exportar catálogo publicado:** genera un Excel con los productos y tejidos de la versión publicada, además de los clientes activos y sus asignaciones actuales.
+
+La exportación es una **plantilla de trabajo actual**, no una restauración histórica: los clientes no pertenecen a una versión de catálogo. Al reimportarla se crea un borrador nuevo y se actualizan los clientes incluidos por código, activándolos y sobrescribiendo su nombre o asignación. El nombre de descarga incluye una marca de tiempo para no reutilizar el de la versión publicada; si lo vuelve a importar varias veces, indique un nombre de versión distinto en cada ocasión. Los clientes inactivos no se incluyen. El archivo contiene nombres de clientes y correos de asignación; compártalo solo con personal autorizado.
+
+Una versión publicada sin elementos detallados, tejidos, clientes activos o con una asignación no resoluble no se exporta para evitar generar un archivo incompleto. El formato tampoco representa catálogos antiguos basados en módulos/variantes.
+
+```powershell
+node --test tests/catalog-workbook.test.cjs tests/catalog-download.test.cjs
 ```
 
 ## Catálogo y datos

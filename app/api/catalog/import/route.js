@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '../../../../lib/supabase/ser
 import { createAdminClient } from '../../../../lib/supabase/admin';
 
 const { catalogAndCustomersFromBuffer } = require('../../../../lib/catalog');
+const { representativeIdsByEmail } = require('../../../../lib/representative-resolution');
 
 export const runtime = 'nodejs';
 
@@ -109,28 +110,11 @@ export async function POST(request) {
           .filter(Boolean)
       )
     ];
-    const { data: representatives, error: representativesError } = representativeEmails.length
-      ? await admin
-          .from('profiles')
-          .select('id, email')
-          .in('email', representativeEmails)
-      : { data: [], error: null };
-    if (representativesError) throw representativesError;
-
-    const representativeByEmail = new Map(
-      (representatives || []).map((representative) => [
-        String(representative.email || '').toLocaleLowerCase('es-ES'),
-        representative.id
-      ])
-    );
-    const unknownEmails = representativeEmails.filter(
-      (email) => !representativeByEmail.has(email)
-    );
-    if (unknownEmails.length) {
-      return errorResponse(
-        `No existe un usuario para: ${unknownEmails.slice(0, 3).join(', ')}${unknownEmails.length > 3 ? '...' : ''}.`,
-        422
-      );
+    let representativeByEmail;
+    try {
+      representativeByEmail = await representativeIdsByEmail(admin, representativeEmails);
+    } catch (error) {
+      return errorResponse(error.message, 422);
     }
 
     const { data: existingVersion } = await admin

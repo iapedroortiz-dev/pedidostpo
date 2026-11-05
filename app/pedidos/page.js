@@ -4,6 +4,7 @@ import { advanceOrderStatus, createOrder } from './actions';
 import NewOrderForm from './new-order-form';
 import { createClient } from '../../lib/supabase/server';
 import { createAdminClient } from '../../lib/supabase/admin';
+import { catalogFabricsForVersion } from '../../lib/catalog-fabrics';
 
 const roleLabels = {
   admin: 'Administrador',
@@ -70,11 +71,7 @@ async function publishedCatalog(supabase) {
     .select('id, name, display_order')
     .eq('catalog_version_id', version.id)
     .order('display_order');
-  const { data: fabrics } = await supabase
-    .from('catalog_fabrics')
-    .select('id, code, name, fabric_type, display_order')
-    .eq('catalog_version_id', version.id)
-    .order('display_order');
+  const fabrics = await catalogFabricsForVersion(supabase, version.id);
   const modelIds = (models || []).map((model) => model.id);
   const mappedFabrics = (fabrics || []).map((fabric) => ({
     id: fabric.id,

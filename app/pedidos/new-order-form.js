@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { matchingFabrics } from '../../lib/fabric-search';
+import { bedDiagramType, isChaiselongueModule } from '../../lib/module-diagram';
 import SubmitOrderButton from './submit-order-button';
 
 function today() {
@@ -46,7 +48,7 @@ function isSofa(values) {
 }
 
 function isChaiselongue(values) {
-  return /\bchaise\s*longue\b|\bchaiselongue\b/.test(values.map(searchText).join(' '));
+  return isChaiselongueModule(values);
 }
 
 function isOneSeatTerminal(values) {
@@ -108,6 +110,8 @@ const diagramFiltersByModuleType = {
 };
 
 function moduleDiagramFilterId(values) {
+  const bed = bedDiagramType(values);
+  if (bed) return bed;
   if (isSofa(values)) return 'sofa';
   if (isArmchair(values)) return 'armchair';
   if (isPouff(values)) return 'pouff';
@@ -157,6 +161,7 @@ function hasRightArm(values) {
 }
 
 function ModuleDiagram({ values }) {
+  const bed = bedDiagramType(values);
   const text = values.map(searchText).join(' ');
   const sofa = isSofa(values);
   const armchair = isArmchair(values);
@@ -171,7 +176,11 @@ function ModuleDiagram({ values }) {
     ? rightArm ? 'derecho' : 'izquierdo'
     : leftArm ? 'izquierdo' : 'derecho';
   const isOneSeat = /1\s*pl/.test(text);
-  const source = sofa
+  const source = bed === 'bed-arm'
+    ? '/assets/cama-con-brazo.png'
+    : bed === 'bed'
+    ? '/assets/cama.png'
+    : sofa
     ? '/assets/sofa.png'
     : armchair
     ? '/assets/sillon.png'
@@ -186,7 +195,11 @@ function ModuleDiagram({ values }) {
       : isOneSeat
         ? '/assets/mod-1-pl-con-brazo.png'
         : '/assets/mod-2-3-pl-con-brazo.png';
-  const label = sofa
+  const label = bed === 'bed-arm'
+    ? 'Cama con un brazo'
+    : bed === 'bed'
+    ? 'Cama'
+    : sofa
     ? 'Sofá'
     : armchair
     ? 'Sillón'
@@ -238,9 +251,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     [fabrics, fabricId]
   );
   const fabricMatches = useMemo(() => {
-    const query = searchText(fabricSearch.trim());
-    if (!query) return [];
-    return fabrics.filter((fabric) => searchText(`${fabric.code} ${fabric.name}`).includes(query)).slice(0, 8);
+    return matchingFabrics(fabrics, fabricSearch);
   }, [fabrics, fabricSearch]);
   const usesItems = catalogFormat === 'items';
   const catalogEntries = usesItems ? selectedModel?.items || [] : selectedModel?.modules || [];
@@ -374,7 +385,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   return (
-    <form action={action} className="order-form" encType="multipart/form-data">
+    <form action={action} className="order-form">
       <div className="order-form-grid">
         <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
         <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={today()} required /></label>

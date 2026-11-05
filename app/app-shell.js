@@ -9,7 +9,8 @@ const links = [
   { href: '/dashboard', label: 'Panel', icon: '▦', roles: ['admin', 'pedidos', 'representante'] },
   { href: '/pedidos', label: 'Pedidos', icon: '◫', roles: ['admin', 'pedidos', 'representante'] },
   { href: '/catalog', label: 'Catálogo', icon: '◇', roles: ['admin'] },
-  { href: '/usuarios', label: 'Usuarios', icon: '◌', roles: ['admin'] }
+  { href: '/usuarios', label: 'Usuarios', icon: '◌', roles: ['admin'] },
+  { href: '/ayuda', label: 'Ayuda', icon: '?', roles: ['admin', 'pedidos', 'representante'] }
 ];
 
 const roleLabels = {

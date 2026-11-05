@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '../../lib/supabase/server';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { catalogFabricCountsForVersions } from '../../lib/catalog-counts';
 import ImportForm from './import-form';
 import CatalogModelBulkForm from './catalog-model-bulk-form';
 import DeleteCatalogButton from './delete-catalog-button';
@@ -57,6 +59,7 @@ export default async function CatalogPage({ searchParams }) {
 
   if (!profile?.active || profile.role !== 'admin') redirect('/dashboard');
 
+  const admin = createAdminClient();
   const { data: versions } = await supabase
     .from('catalog_versions')
     .select('id, label, status, created_at, published_at')
@@ -73,12 +76,25 @@ export default async function CatalogPage({ searchParams }) {
   const items = modelIds.length
     ? await catalogItemsForModels(supabase, modelIds)
     : [];
-  const { data: fabrics } = versionIds.length
+  const fabricCountByVersion = versionIds.length
+    ? await catalogFabricCountsForVersions(admin, versionIds)
+    : new Map();
+  const { data: catalogImportEvents } = versionIds.length
     ? await supabase
-        .from('catalog_fabrics')
-        .select('id, catalog_version_id')
-        .in('catalog_version_id', versionIds)
+        .from('audit_events')
+        .select('new_data, created_at')
+        .eq('action', 'IMPORT')
+        .eq('entity_type', 'catalog_version')
+        .order('created_at', { ascending: false })
     : { data: [] };
+  const customerCountByVersion = new Map();
+  (catalogImportEvents || []).forEach((event) => {
+    const versionId = event.new_data?.catalog_version_id;
+    const customerCount = Number(event.new_data?.customer_count);
+    if (versionId && Number.isFinite(customerCount) && !customerCountByVersion.has(versionId)) {
+      customerCountByVersion.set(versionId, customerCount);
+    }
+  });
 
   const error = messageFrom(params.error);
   const message = messageFrom(params.message);
@@ -118,9 +134,8 @@ export default async function CatalogPage({ searchParams }) {
               ).length,
               0
             );
-            const fabricCount = (fabrics || []).filter(
-              (fabric) => fabric.catalog_version_id === version.id
-            ).length;
+            const fabricCount = fabricCountByVersion.get(version.id) || 0;
+            const customerCount = customerCountByVersion.get(version.id) || 0;
             const canEditModels = ['borrador', 'archivado'].includes(version.status);
 
             return (
@@ -135,7 +150,7 @@ export default async function CatalogPage({ searchParams }) {
                           ? ` - Publicada: ${formatDate(version.published_at)}`
                           : ''}
                       </p>
-                      <small>{versionModels.length} modelos - {itemCount} elementos - {fabricCount} tejidos</small>
+                      <small>{versionModels.length} modelos - {itemCount} elementos - {fabricCount} tejidos - {customerCount} clientes</small>
                     </div>
 
                     <div className="catalog-version-actions">

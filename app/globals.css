@@ -1193,6 +1193,7 @@ body { background: #eef1ed; color: #1d2922; }
 .secondary-button, .dashboard-link { color: #146c41; background: #e5f3e9; }
 .catalog-back, .orders-back, .users-back { color: #147747; }
 .catalog-status, .catalog-success, .access-active, .status-publicado, .status-en_fabricacion { color: #17633a; background: #e3f5e8; }
+.catalog-downloads { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 24px; margin-top: 28px; padding-top: 28px; border-top: 1px solid #dce5de; }.catalog-downloads h3 { margin: 6px 0; }.catalog-downloads p { margin: 0; line-height: 1.6; }.catalog-download-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }.catalog-download-actions a { text-decoration: none; white-space: nowrap; }.catalog-download-notice { grid-column: 1 / -1; padding: 14px 16px; border-left: 4px solid #b27b18; border-radius: 4px 12px 12px 4px; background: #fff8e8; color: #60430c; }
 .status-confirmado, .order-tag, .orders-count, .users-count, .user-role-readonly { color: #146c41; background: #e5f3e9; }
 .catalog-badge, .order-tag, .orders-count, .order-status, .user-access, .users-count, .user-role-readonly { border-radius: 999px; }
 .catalog-model-details, .order-catalog-details { border-color: #dfe8e1; }
@@ -1224,6 +1225,7 @@ body { background: #eef1ed; color: #1d2922; }
 .app-frame .dashboard-link { display: none; }
 
 @media (max-width: 700px) { .app-sidebar { width: 72px; padding-inline: 10px; }.app-brand { padding: 0; justify-content: center; }.app-brand strong, .app-nav-link > span:last-child, .app-sidebar-user > div, .app-sidebar-logout button > span:last-child, .sidebar-collapse { display: none; }.app-nav-link { justify-content: center; padding: 0; }.app-sidebar-user { justify-content: center; padding-inline: 0; }.app-sidebar-logout { margin-inline: 0; }.app-sidebar-logout button { padding: 0; }.app-content { width: calc(100% - 72px); } }
+@media (max-width: 760px) { .catalog-downloads { grid-template-columns: 1fr; }.catalog-download-actions { justify-content: flex-start; } }
 
 /* Resumen de actividad del panel. */
 .dashboard-page { width: min(100% - 56px, 1120px); margin: 0 auto; padding: 46px 0 64px; place-items: stretch; align-content: start; }
