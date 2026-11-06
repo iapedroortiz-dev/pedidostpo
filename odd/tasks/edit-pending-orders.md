@@ -6,9 +6,9 @@ S1. "un usuario con rol representante pueda editar pedidos que todavía no esté
 S2. "Todos"
 
 ## Tasks
-- T1 · S1-S2 · inline · done · Add server and database authorization for representatives to update only their pending orders; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
-- T2 · S1-S2 · inline · done · Add an edit flow for every order field, including lines, model fabrics, notes, and attachments; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
-- T3 · S1-S2 · inline · done · Render the representative edit entry point and verify pending versus managed access; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
+- T1 · S1-S2 · inline · done · Commit `b088901`; add server and database authorization for representatives to update only their pending orders; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
+- T2 · S1-S2 · inline · done · Commit `b088901`; add an edit flow for every order field, including lines, model fabrics, notes, and attachments; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
+- T3 · S1-S2 · inline · done · Commit `b088901`; render the representative edit entry point and verify pending versus managed access; RED/GREEN: `tests/pending-order-edit-policy.test.cjs`.
 
 ## Log
 L1. User request: "Ok, es muy importante que un usuario con rol representante pueda editar pedidos que todavía no estén gestionados"
