@@ -233,9 +233,66 @@ function emptyLegacySelection(module) {
   };
 }
 
-export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat }) {
-  const [modelId, setModelId] = useState(models[0]?.id || '');
-  const [fabricIdsByModel, setFabricIdsByModel] = useState({});
+function initialFabricIds(order) {
+  return Object.fromEntries((order?.order_model_fabrics || [])
+    .filter((assignment) => assignment.catalog_model_id && assignment.catalog_fabric_id)
+    .map((assignment) => [assignment.catalog_model_id, assignment.catalog_fabric_id]));
+}
+
+function initialLinesForOrder(models, order, catalogFormat) {
+  if (!order) return {};
+  const lines = {};
+  (order.order_lines || []).forEach((line) => {
+    if (catalogFormat === 'items') {
+      const model = models.find((item) => item.items?.some((catalogItem) => catalogItem.id === line.catalog_item_id));
+      const item = model?.items.find((catalogItem) => catalogItem.id === line.catalog_item_id);
+      if (!item) return;
+      lines[item.id] = {
+        itemId: item.id,
+        catalogModelId: model.id,
+        quantity: line.quantity,
+        displayModel: model.name,
+        displayName: item.code,
+        displayDescription: item.description,
+        displayDetails: itemDetails(item)
+      };
+      return;
+    }
+    const model = models.find((item) => item.modules?.some((module) => module.variants.some((variant) => variant.id === line.catalog_module_variant_id)));
+    const module = model?.modules.find((catalogModule) => catalogModule.variants.some((variant) => variant.id === line.catalog_module_variant_id));
+    const variant = module?.variants.find((catalogVariant) => catalogVariant.id === line.catalog_module_variant_id);
+    if (!module || !variant) return;
+    const key = `${module.id}:${variant.id}:${line.side || 'sin-lado'}`;
+    lines[key] = {
+      variantId: variant.id,
+      catalogModelId: model.id,
+      side: line.side || '',
+      quantity: line.quantity,
+      displayModel: model.name,
+      displayName: module.name,
+      displayDescription: variant.mechanism,
+      displayDetails: line.side || ''
+    };
+  });
+  return lines;
+}
+
+function initialComposition(lines) {
+  let sequence = 0;
+  return Object.entries(lines).flatMap(([key, line]) => Array.from(
+    { length: line.quantity },
+    () => ({ id: `${key}:initial-${++sequence}`, key })
+  ));
+}
+
+export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat, initialOrder, submitLabel }) {
+  const initialLines = useMemo(() => initialLinesForOrder(models, initialOrder, catalogFormat), [models, initialOrder, catalogFormat]);
+  const initialModelId = initialOrder?.order_model_fabrics?.[0]?.catalog_model_id
+    || Object.values(initialLines)[0]?.catalogModelId
+    || models[0]?.id
+    || '';
+  const [modelId, setModelId] = useState(initialModelId);
+  const [fabricIdsByModel, setFabricIdsByModel] = useState(() => initialFabricIds(initialOrder));
   const [fabricSearch, setFabricSearch] = useState('');
   const [attachmentError, setAttachmentError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -244,8 +301,8 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [mechanismFilter, setMechanismFilter] = useState('');
   const [diagramFilter, setDiagramFilter] = useState('');
   const [preview, setPreview] = useState(null);
-  const [lines, setLines] = useState({});
-  const [compositionOrder, setCompositionOrder] = useState([]);
+  const [lines, setLines] = useState(initialLines);
+  const [compositionOrder, setCompositionOrder] = useState(() => initialComposition(initialLines));
   const [draggedCompositionId, setDraggedCompositionId] = useState('');
   const [legacySelections, setLegacySelections] = useState({});
   const modelSelectRef = useRef(null);
@@ -254,7 +311,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const notesRef = useRef(null);
   const cartRef = useRef(null);
   const fabricSearchRef = useRef(null);
-  const compositionSequenceRef = useRef(0);
+  const compositionSequenceRef = useRef(compositionOrder.length);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === modelId),
     [models, modelId]
@@ -442,10 +499,11 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   return (
-    <form action={action} className="order-form">
-      <div className="order-form-grid">
-        <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue="" required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
-        <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={today()} required /></label>
+      <form action={action} className="order-form">
+        {initialOrder ? <input type="hidden" name="orderId" value={initialOrder.id} /> : null}
+        <div className="order-form-grid">
+          <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue={initialOrder?.customer_id || ''} required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
+          <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={initialOrder?.order_date || today()} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
         <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setMaterialFilter(''); }}>Quitar selección</button> : null}{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric) => <button type="button" key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
       </div>
@@ -453,7 +511,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       <section className="module-selection" aria-labelledby="catalog-selection-title">
         <div>
           <p className="eyebrow">CONFIGURACION</p>
-          <h3 id="catalog-selection-title">Configura la modulación</h3>
+          <h3 id="catalog-selection-title">{initialOrder ? `Edita el pedido #${initialOrder.order_number}` : 'Configura la modulación'}</h3>
           <p>Elige el tejido y responde estas preguntas para reducir el catálogo. Puedes cambiar los filtros siempre que necesites añadir otro módulo.</p>
         </div>
 
@@ -609,11 +667,11 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
         </div>
       </section>
 
-      <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" /></label>
-      <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span><input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
+      <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" defaultValue={initialOrder?.notes || ''} /></label>
+      <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span>{initialOrder?.order_attachments?.length ? <small>Los adjuntos actuales se conservarán y el nuevo archivo se añadirá.</small> : null}<input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <input type="hidden" name="modelFabricAssignments" value={JSON.stringify(modelFabricAssignments)} />
-      <SubmitOrderButton disabled={!cartEntries.length} />
+      <SubmitOrderButton disabled={!cartEntries.length} label={submitLabel} />
       {preview ? (
         <div className="order-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
           <section className="order-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="order-preview-title">

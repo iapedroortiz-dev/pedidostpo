@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { advanceOrderStatus, createOrder } from './actions';
+import { advanceOrderStatus, createOrder, updateOrder } from './actions';
 import NewOrderForm from './new-order-form';
 import { createClient } from '../../lib/supabase/server';
 import { createAdminClient } from '../../lib/supabase/admin';
@@ -58,12 +58,14 @@ async function catalogItemsForModels(supabase, modelIds) {
   return items;
 }
 
-async function publishedCatalog(supabase) {
-  const { data: version } = await supabase
+async function catalogForVersion(supabase, catalogVersionId) {
+  let versionQuery = supabase
     .from('catalog_versions')
-    .select('id, label')
-    .eq('status', 'publicado')
-    .maybeSingle();
+    .select('id, label');
+  versionQuery = catalogVersionId
+    ? versionQuery.eq('id', catalogVersionId)
+    : versionQuery.eq('status', 'publicado');
+  const { data: version } = await versionQuery.maybeSingle();
   if (!version) return null;
 
   const { data: models } = await supabase
@@ -139,9 +141,14 @@ async function publishedCatalog(supabase) {
   };
 }
 
+async function publishedCatalog(supabase) {
+  return catalogForVersion(supabase);
+}
+
 export default async function OrdersPage({ searchParams }) {
   const params = (await searchParams) || {};
   const targetOrderId = messageFrom(params.order);
+  const editOrderId = messageFrom(params.edit);
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
@@ -167,11 +174,17 @@ export default async function OrdersPage({ searchParams }) {
       : Promise.resolve({ data: [] }),
     supabase
       .from('orders')
-      .select('id, order_number, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_code, module_name, mechanism, side, quantity), order_model_fabrics(model_name, fabric_code, fabric_name, fabric_type), order_attachments(id, original_name, storage_path)')
+      .select('id, order_number, customer_id, catalog_version_id, catalog_model_id, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_id, catalog_module_variant_id, catalog_item_code, module_name, mechanism, side, quantity), order_model_fabrics(catalog_model_id, catalog_fabric_id, model_name, fabric_code, fabric_name, fabric_type), order_attachments(id, original_name, storage_path)')
       .order('created_at', { ascending: false })
   ]);
   const customers = customersResult.data;
   const orders = ordersResult.data;
+  const editableOrder = profile.role === 'representante'
+    ? (orders || []).find((order) => order.id === editOrderId && order.status === 'pendiente')
+    : null;
+  const editCatalog = editableOrder?.catalog_version_id
+    ? await catalogForVersion(createAdminClient(), editableOrder.catalog_version_id)
+    : null;
   const attachmentLinks = new Map();
   if (canManage) {
     const attachmentPaths = (orders || []).flatMap((order) => order.order_attachments || []);
@@ -214,6 +227,7 @@ export default async function OrdersPage({ searchParams }) {
           {(orders || []).map((order) => {
             const quantity = (order.order_lines || []).reduce((sum, line) => sum + line.quantity, 0);
             const nextStatus = order.status === 'pendiente' ? 'gestionado' : null;
+            const canEditOrder = profile.role === 'representante' && order.status === 'pendiente';
             return (
               <article className={`order-row${order.id === targetOrderId ? ' is-targeted' : ''}`} id={`pedido-${order.order_number}`} key={order.id}>
                 <div className="order-row-summary">
@@ -246,8 +260,10 @@ export default async function OrdersPage({ searchParams }) {
                     </details>
                   ) : null}
                 </div>
-                <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">Marcar como gestionado</button></form> : null}</div>
-              </article>
+                 <div className="order-row-actions"><span className={`order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span>{canManage && nextStatus ? <form action={advanceOrderStatus}><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="status" value={nextStatus} /><button type="submit" className="secondary-button">Marcar como gestionado</button></form> : null}</div>
+                 {canEditOrder ? <div className="order-row-actions">{editOrderId === order.id ? <Link className="secondary-button" href="/pedidos">Cancelar edición</Link> : <Link className="secondary-button" href={`/pedidos?edit=${order.id}`}>Editar pedido</Link>}</div> : null}
+                 {canEditOrder && editOrderId === order.id && editCatalog?.models?.length && editCatalog?.fabrics?.length && customers?.length ? <section className="order-edit-panel"><NewOrderForm key={order.id} models={editCatalog.models} fabrics={editCatalog.fabrics} customers={customers} catalogFormat={editCatalog.format} action={updateOrder} initialOrder={order} submitLabel="Guardar cambios" /></section> : null}
+               </article>
             );
           })}
           {!orders?.length ? <p className="auth-intro">Todavia no hay pedidos registrados.</p> : null}

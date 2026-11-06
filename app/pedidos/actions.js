@@ -378,6 +378,167 @@ export async function createOrder(formData) {
   redirect(`/pedidos?message=${encodeURIComponent(`Pedido #${order.order_number} creado correctamente.${attachmentNotice}${emailNotice}`)}`);
 }
 
+export async function updateOrder(formData) {
+  const supabase = await createClient();
+  const { userId, profile } = await currentUserProfile(supabase);
+  if (profile.role !== 'representante') {
+    redirectWithError('No tienes permiso para editar pedidos.');
+  }
+
+  const orderId = String(formData.get('orderId') || '').trim();
+  const { data: existingOrder } = await supabase
+    .from('orders')
+    .select('id, status, catalog_version_id')
+    .eq('id', orderId)
+    .eq('representative_id', userId)
+    .maybeSingle();
+  if (!existingOrder || existingOrder.status !== 'pendiente') {
+    redirectWithError('Solo puedes editar tus pedidos pendientes.');
+  }
+
+  const customerId = String(formData.get('customerId') || '').trim();
+  const orderDate = String(formData.get('orderDate') || '').trim();
+  const notes = String(formData.get('notes') || '').trim();
+  const attachment = formData.get('attachment');
+  const catalogModelId = String(formData.get('catalogModelId') || '').trim();
+  if (!customerId || !/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) {
+    redirectWithError('Completa el cliente y la fecha del pedido.');
+  }
+  if (!catalogModelId || notes.length > 2000) {
+    redirectWithError('Los datos del pedido no son validos.');
+  }
+  const hasAttachment = attachment && typeof attachment === 'object' && attachment.size > 0;
+  if (hasAttachment && (!allowedAttachmentTypes.has(attachment.type) || attachment.size > maxAttachmentSize)) {
+    redirectWithError('El adjunto debe ser PDF, JPG, JPEG o PNG y no superar 3 MB.');
+  }
+  const requestedLines = parseRequestedLines(formData);
+  const requestedFabricAssignments = parseModelFabricAssignments(formData);
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, client_code, trade_name')
+    .eq('id', customerId)
+    .eq('active', true)
+    .maybeSingle();
+  if (!customer) {
+    redirectWithError('El cliente seleccionado no esta disponible para tu usuario.');
+  }
+
+  const catalogSource = createAdminClient();
+  const { data: catalogVersion } = await catalogSource
+    .from('catalog_versions')
+    .select('id')
+    .eq('id', existingOrder.catalog_version_id)
+    .maybeSingle();
+  if (!catalogVersion) redirectWithError('El catálogo original del pedido ya no está disponible.');
+
+  const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
+  const usesLegacy = requestedLines.every((line) => String(line?.variantId || '').trim());
+  if (!usesItems && !usesLegacy) {
+    redirectWithError('La seleccion mezcla formatos de catalogo no validos.');
+  }
+  let lines;
+  let orderModelId;
+  let orderModelName;
+  let orderModels;
+
+  if (usesItems) {
+    const itemResult = await catalogLinesFromItems(catalogSource, catalogVersion.id, requestedLines);
+    lines = itemResult.lines;
+    orderModelId = itemResult.modelIds.length === 1 ? itemResult.modelIds[0] : null;
+    orderModelName = itemResult.modelNames.join(' + ');
+    orderModels = itemResult.models;
+  } else {
+    const { data: catalogModel } = await catalogSource
+      .from('catalog_models')
+      .select('id, name')
+      .eq('id', catalogModelId)
+      .eq('catalog_version_id', catalogVersion.id)
+      .maybeSingle();
+    if (!catalogModel) {
+      redirectWithError('El modelo seleccionado ya no pertenece al catalogo publicado.');
+    }
+    lines = await catalogLinesFromLegacy(catalogSource, catalogModel.id, requestedLines);
+    orderModelId = catalogModel.id;
+    orderModelName = catalogModel.name;
+    orderModels = [catalogModel];
+  }
+
+  const requestedFabricIds = [...new Set(requestedFabricAssignments
+    .map((assignment) => String(assignment?.catalogFabricId || '').trim())
+    .filter(Boolean))];
+  const { data: selectedFabrics, error: selectedFabricsError } = requestedFabricIds.length
+    ? await catalogSource
+      .from('catalog_fabrics')
+      .select('id, code, name, fabric_type')
+      .eq('catalog_version_id', catalogVersion.id)
+      .in('id', requestedFabricIds)
+    : { data: [], error: null };
+  if (selectedFabricsError) {
+    console.error('Error validando tejidos del pedido:', selectedFabricsError);
+    redirectWithError('No se pudieron validar los tejidos seleccionados.');
+  }
+
+  let modelFabricAssignments;
+  try {
+    modelFabricAssignments = modelFabricAssignmentsForModels(orderModels, requestedFabricAssignments, selectedFabrics);
+  } catch (error) {
+    redirectWithError(error.message);
+  }
+
+  const { error: updateError } = await supabase.rpc('replace_pending_order', {
+    p_order_id: existingOrder.id,
+    p_catalog_version_id: catalogVersion.id,
+    p_catalog_model_id: orderModelId,
+    p_model_name: orderModelName,
+    p_customer_id: customer.id,
+    p_client_code: customer.client_code,
+    p_client_name: customer.trade_name,
+    p_order_date: orderDate,
+    p_notes: notes || null,
+    p_lines: lines,
+    p_model_fabrics: modelFabricAssignments
+  });
+  if (updateError) {
+    console.error('Error actualizando pedido:', updateError);
+    redirectWithError('No se pudo actualizar el pedido. Intentalo de nuevo.');
+  }
+
+  let attachmentNotice = '';
+  if (hasAttachment) {
+    const admin = createAdminClient();
+    const storagePath = `${existingOrder.id}/${Date.now()}-${safeAttachmentName(attachment.name)}`;
+    const { error: uploadError } = await admin.storage
+      .from('order-attachments')
+      .upload(storagePath, Buffer.from(await attachment.arrayBuffer()), {
+        contentType: attachment.type,
+        upsert: false
+      });
+    if (uploadError) {
+      console.error('No se pudo subir el adjunto:', uploadError);
+      attachmentNotice = ' El pedido se actualizó, pero no se pudo subir el adjunto.';
+    } else {
+      const { error: attachmentError } = await admin
+        .from('order_attachments')
+        .insert({
+          order_id: existingOrder.id,
+          original_name: attachment.name,
+          storage_path: storagePath,
+          content_type: attachment.type,
+          size_bytes: attachment.size
+        });
+      if (attachmentError) {
+        console.error('No se pudo registrar el adjunto:', attachmentError);
+        await admin.storage.from('order-attachments').remove([storagePath]);
+        attachmentNotice = ' El pedido se actualizó, pero no se pudo guardar el adjunto.';
+      }
+    }
+  }
+
+  revalidatePath('/pedidos');
+  redirect(`/pedidos?message=${encodeURIComponent(`Pedido actualizado correctamente.${attachmentNotice}`)}`);
+}
+
 export async function advanceOrderStatus(formData) {
   const orderId = String(formData.get('orderId') || '').trim();
   const status = String(formData.get('status') || '').trim();
