@@ -34,3 +34,13 @@ Add schema, RLS, storage, or role changes as a new timestamped migration in `sup
 ## Commits & Pull Requests
 
 Recent history uses concise imperative subjects, commonly Conventional Commit-style: `feat: importar y asignar clientes desde Excel`. Use `feat:`, `fix:`, `chore:`, or `docs:` where applicable. Keep commits focused. PRs should state the user-facing change, migration/configuration impact, validation performed, and link the issue when available. Include screenshots for visible UI changes. Target `main`, the production branch, only after `npm run build` and `git diff --check` pass.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

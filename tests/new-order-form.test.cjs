@@ -25,7 +25,8 @@ function loadComponent(filename) {
   return module.exports;
 }
 
-const NewOrderForm = loadComponent(path.resolve(__dirname, '../app/pedidos/new-order-form.js')).default;
+const orderFormModule = loadComponent(path.resolve(__dirname, '../app/pedidos/new-order-form.js'));
+const NewOrderForm = orderFormModule.default;
 
 test('Order form renders a function action without transport attribute warnings', (t) => {
   const errors = [];
@@ -42,4 +43,22 @@ test('Order form renders a function action without transport attribute warnings'
   }
   assert.match(html, /<input[^>]*type="file"[^>]*name="attachment"/);
   assert.match(html, /accept="application\/pdf,image\/jpeg,image\/png,\.pdf,\.jpg,\.jpeg,\.png"/);
+});
+
+test('fabric search moves through matching results with arrow keys', () => {
+  const nextFabricMatchIndex = orderFormModule.nextFabricMatchIndex;
+
+  assert.equal(nextFabricMatchIndex(-1, 'ArrowDown', 3), 0);
+  assert.equal(nextFabricMatchIndex(0, 'ArrowDown', 3), 1);
+  assert.equal(nextFabricMatchIndex(2, 'ArrowDown', 3), 2);
+  assert.equal(nextFabricMatchIndex(-1, 'ArrowUp', 3), 2);
+  assert.equal(nextFabricMatchIndex(1, 'ArrowUp', 3), 0);
+  assert.equal(nextFabricMatchIndex(0, 'ArrowUp', 3), 0);
+  assert.equal(nextFabricMatchIndex(0, 'ArrowDown', 0), -1);
+});
+
+test('fabric search keeps the active keyboard result visible', () => {
+  const source = readFileSync(path.resolve(__dirname, '../app/pedidos/new-order-form.js'), 'utf8');
+
+  assert.match(source, /scrollIntoView\(\{ block: 'nearest' \}\)/);
 });

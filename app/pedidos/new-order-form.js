@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { matchingFabrics } from '../../lib/fabric-search';
 import { bedDiagramType, isChaiselongueModule } from '../../lib/module-diagram';
 import { moveCompositionUnit } from '../../lib/order-composition';
@@ -285,6 +285,13 @@ function initialComposition(lines) {
   ));
 }
 
+export function nextFabricMatchIndex(currentIndex, key, totalMatches) {
+  if (!totalMatches) return -1;
+  if (key === 'ArrowDown') return Math.min(currentIndex + 1, totalMatches - 1);
+  if (key === 'ArrowUp') return currentIndex < 0 ? totalMatches - 1 : Math.max(currentIndex - 1, 0);
+  return currentIndex;
+}
+
 export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat, initialOrder, submitLabel }) {
   const initialLines = useMemo(() => initialLinesForOrder(models, initialOrder, catalogFormat), [models, initialOrder, catalogFormat]);
   const initialModelId = initialOrder?.order_model_fabrics?.[0]?.catalog_model_id
@@ -294,6 +301,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [modelId, setModelId] = useState(initialModelId);
   const [fabricIdsByModel, setFabricIdsByModel] = useState(() => initialFabricIds(initialOrder));
   const [fabricSearch, setFabricSearch] = useState('');
+  const [activeFabricMatchIndex, setActiveFabricMatchIndex] = useState(-1);
   const [attachmentError, setAttachmentError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [materialFilter, setMaterialFilter] = useState('');
@@ -323,6 +331,12 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const fabricMatches = useMemo(() => {
     return matchingFabrics(fabrics, fabricSearch);
   }, [fabrics, fabricSearch]);
+  const activeFabricMatch = fabricMatches[activeFabricMatchIndex];
+
+  useEffect(() => {
+    if (!activeFabricMatch) return;
+    document.getElementById(`fabric-option-${activeFabricMatch.id}`)?.scrollIntoView({ block: 'nearest' });
+  }, [activeFabricMatch]);
   const usesItems = catalogFormat === 'items';
   const catalogEntries = usesItems ? selectedModel?.items || [] : selectedModel?.modules || [];
   const visibleDiagramFilterOptions = moduleTypeFilter
@@ -391,13 +405,27 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   function selectFabric(fabric) {
     setFabricSearch(`${fabric.code} - ${fabric.name} (${fabric.type === 'P' ? 'Piel' : 'Tela'})`);
     changeFabric(fabric.id);
+    setActiveFabricMatchIndex(-1);
   }
 
   function searchFabric(value) {
     setFabricSearch(value);
+    setActiveFabricMatchIndex(-1);
     if (selectedFabric) {
       setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' }));
       setMaterialFilter('');
+    }
+  }
+
+  function navigateFabricMatches(event) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveFabricMatchIndex((currentIndex) => nextFabricMatchIndex(currentIndex, event.key, fabricMatches.length));
+      return;
+    }
+    if (event.key === 'Enter' && activeFabricMatch) {
+      event.preventDefault();
+      selectFabric(activeFabricMatch);
     }
   }
 
@@ -505,7 +533,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
           <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue={initialOrder?.customer_id || ''} required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
           <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={initialOrder?.order_date || today()} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
-        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setMaterialFilter(''); }}>Quitar selección</button> : null}{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric) => <button type="button" key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
+        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} onKeyDown={navigateFabricMatches} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" aria-activedescendant={activeFabricMatch ? `fabric-option-${activeFabricMatch.id}` : undefined} /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setActiveFabricMatchIndex(-1); setMaterialFilter(''); }}>Quitar selección</button> : null}{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric, index) => <button className={index === activeFabricMatchIndex ? 'fabric-search-result-active' : ''} type="button" id={`fabric-option-${fabric.id}`} key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
       </div>
 
       <section className="module-selection" aria-labelledby="catalog-selection-title">
