@@ -37,7 +37,7 @@ test('Order form renders a function action without transport attribute warnings'
   }));
 
   assert.deepEqual(errors, []);
-  for (const name of ['customerId', 'orderDate', 'catalogModelId', 'catalogFabricId', 'notes', 'lines']) {
+  for (const name of ['customerId', 'orderDate', 'catalogModelId', 'modelFabricAssignments', 'notes', 'lines']) {
     assert.ok(html.includes(`name="${name}"`), `Missing order field: ${name}`);
   }
   assert.match(html, /<input[^>]*type="file"[^>]*name="attachment"/);
