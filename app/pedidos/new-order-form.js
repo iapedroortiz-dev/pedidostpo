@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { matchingFabrics } from '../../lib/fabric-search';
 import { bedDiagramType, isChaiselongueModule } from '../../lib/module-diagram';
 import { moveCompositionUnit } from '../../lib/order-composition';
@@ -233,7 +233,8 @@ function emptyLegacySelection(module) {
   };
 }
 
-function initialFabricIds(order) {
+function initialFabricIds(order, draft) {
+  if (draft?.payload?.fabricIdsByModel) return draft.payload.fabricIdsByModel;
   return Object.fromEntries((order?.order_model_fabrics || [])
     .filter((assignment) => assignment.catalog_model_id && assignment.catalog_fabric_id)
     .map((assignment) => [assignment.catalog_model_id, assignment.catalog_fabric_id]));
@@ -285,6 +286,44 @@ function initialComposition(lines) {
   ));
 }
 
+function initialLinesForDraft(models, draft, catalogFormat) {
+  if (!draft?.payload?.lines) return {};
+  const lines = {};
+  draft.payload.lines.forEach((line) => {
+    if (catalogFormat === 'items') {
+      const model = models.find((candidate) => candidate.items?.some((item) => item.id === line.itemId));
+      const item = model?.items.find((candidate) => candidate.id === line.itemId);
+      if (!item) return;
+      lines[item.id] = {
+        itemId: item.id,
+        catalogModelId: model.id,
+        quantity: line.quantity,
+        displayModel: model.name,
+        displayName: item.code,
+        displayDescription: item.description,
+        displayDetails: itemDetails(item)
+      };
+      return;
+    }
+    const model = models.find((candidate) => candidate.modules?.some((module) => module.variants.some((variant) => variant.id === line.variantId)));
+    const module = model?.modules.find((candidate) => candidate.variants.some((variant) => variant.id === line.variantId));
+    const variant = module?.variants.find((candidate) => candidate.id === line.variantId);
+    if (!model || !module || !variant) return;
+    const key = `${module.id}:${variant.id}:${line.side || 'sin-lado'}`;
+    lines[key] = {
+      variantId: variant.id,
+      catalogModelId: model.id,
+      side: line.side || '',
+      quantity: line.quantity,
+      displayModel: model.name,
+      displayName: module.name,
+      displayDescription: variant.mechanism,
+      displayDetails: line.side || ''
+    };
+  });
+  return lines;
+}
+
 export function nextFabricMatchIndex(currentIndex, key, totalMatches) {
   if (!totalMatches) return -1;
   if (key === 'ArrowDown') return Math.min(currentIndex + 1, totalMatches - 1);
@@ -292,15 +331,17 @@ export function nextFabricMatchIndex(currentIndex, key, totalMatches) {
   return currentIndex;
 }
 
-export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat, initialOrder, submitLabel }) {
-  const initialLines = useMemo(() => initialLinesForOrder(models, initialOrder, catalogFormat), [models, initialOrder, catalogFormat]);
-  const initialModelId = initialOrder?.order_model_fabrics?.[0]?.catalog_model_id
+export default function NewOrderForm({ models, fabrics, customers, action, catalogFormat, initialOrder, initialDraft, submitLabel, draftAction, catalogVersionId }) {
+  const initialLines = useMemo(() => initialDraft ? initialLinesForDraft(models, initialDraft, catalogFormat) : initialLinesForOrder(models, initialOrder, catalogFormat), [models, initialOrder, initialDraft, catalogFormat]);
+  const initialModelId = initialDraft?.payload?.modelId
+    || initialOrder?.order_model_fabrics?.[0]?.catalog_model_id
     || Object.values(initialLines)[0]?.catalogModelId
     || models[0]?.id
     || '';
   const [modelId, setModelId] = useState(initialModelId);
-  const [fabricIdsByModel, setFabricIdsByModel] = useState(() => initialFabricIds(initialOrder));
+  const [fabricIdsByModel, setFabricIdsByModel] = useState(() => initialFabricIds(initialOrder, initialDraft));
   const [fabricSearch, setFabricSearch] = useState('');
+  const [showFabricMatches, setShowFabricMatches] = useState(false);
   const [activeFabricMatchIndex, setActiveFabricMatchIndex] = useState(-1);
   const [attachmentError, setAttachmentError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -313,6 +354,13 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [compositionOrder, setCompositionOrder] = useState(() => initialComposition(initialLines));
   const [draggedCompositionId, setDraggedCompositionId] = useState('');
   const [legacySelections, setLegacySelections] = useState({});
+  const [customerId, setCustomerId] = useState(initialDraft?.payload?.customerId || initialOrder?.customer_id || '');
+  const [orderDate, setOrderDate] = useState(initialDraft?.payload?.orderDate || initialOrder?.order_date || today());
+  const [notes, setNotes] = useState(initialDraft?.payload?.notes || initialOrder?.notes || '');
+  const [draftId, setDraftId] = useState(initialDraft?.id || '');
+  const [draftRevision, setDraftRevision] = useState(0);
+  const [draftMessage, setDraftMessage] = useState(initialDraft ? 'Borrador recuperado.' : '');
+  const [, startDraftSave] = useTransition();
   const modelSelectRef = useRef(null);
   const customerSelectRef = useRef(null);
   const orderDateRef = useRef(null);
@@ -373,6 +421,37 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       catalogFabricId: fabricIdsByModel[catalogModelId] || ''
     }));
   }, [cartEntries, fabricIdsByModel]);
+
+  function markDraftChanged() {
+    if (!draftAction) return;
+    setDraftId((currentId) => currentId || crypto.randomUUID());
+    setDraftRevision((revision) => revision + 1);
+  }
+
+  useEffect(() => {
+    if (!draftAction || !draftId || !draftRevision) return;
+    const timeout = setTimeout(() => {
+      const payload = {
+        customerId,
+        orderDate,
+        notes,
+        modelId,
+        fabricIdsByModel,
+        lines: requestedLines
+      };
+      setDraftMessage('Guardando borrador…');
+      startDraftSave(async () => {
+        try {
+          const savedDraft = await draftAction({ draftId, catalogVersionId, payload });
+          setDraftId(savedDraft.id);
+          setDraftMessage('Borrador guardado.');
+        } catch {
+          setDraftMessage('No se pudo guardar el borrador.');
+        }
+      });
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [draftRevision]);
   const compositionByModel = useMemo(() => {
     const groups = new Map();
     compositionOrder.forEach((unit) => {
@@ -391,29 +470,35 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     setFabricSearch(selected ? `${selected.code} - ${selected.name} (${selected.type === 'P' ? 'Piel' : 'Tela'})` : '');
     setMaterialFilter(selected?.type === 'P' ? 'leather' : selected?.type === 'T' ? 'fabric' : '');
     setSearchQuery('');
+    setShowFabricMatches(false);
     setModuleTypeFilter('');
     setMechanismFilter('');
     setDiagramFilter('');
+    markDraftChanged();
   }
 
   function changeFabric(nextFabricId) {
     setFabricIdsByModel((previous) => ({ ...previous, [modelId]: nextFabricId }));
     const fabric = fabrics.find((item) => item.id === nextFabricId);
     setMaterialFilter(fabric?.type === 'P' ? 'leather' : fabric?.type === 'T' ? 'fabric' : '');
+    markDraftChanged();
   }
 
   function selectFabric(fabric) {
     setFabricSearch(`${fabric.code} - ${fabric.name} (${fabric.type === 'P' ? 'Piel' : 'Tela'})`);
     changeFabric(fabric.id);
+    setShowFabricMatches(false);
     setActiveFabricMatchIndex(-1);
   }
 
   function searchFabric(value) {
     setFabricSearch(value);
+    setShowFabricMatches(Boolean(value.trim()));
     setActiveFabricMatchIndex(-1);
     if (selectedFabric) {
       setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' }));
       setMaterialFilter('');
+      markDraftChanged();
     }
   }
 
@@ -442,6 +527,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   function adjustLine(key, amount, defaults) {
+    markDraftChanged();
     setLines((previous) => {
       const current = previous[key] || defaults;
       const quantity = Math.max(0, Math.min(999, current.quantity + amount));
@@ -467,6 +553,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   function updateLegacySelection(moduleId, field, value) {
+    markDraftChanged();
     setLegacySelections((previous) => ({
       ...previous,
       [moduleId]: { ...(previous[moduleId] || {}), [field]: value }
@@ -529,11 +616,12 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   return (
       <form action={action} className="order-form">
         {initialOrder ? <input type="hidden" name="orderId" value={initialOrder.id} /> : null}
+        {draftId ? <input type="hidden" name="draftId" value={draftId} /> : null}
         <div className="order-form-grid">
-          <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" defaultValue={initialOrder?.customer_id || ''} required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
-          <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" defaultValue={initialOrder?.order_date || today()} required /></label>
+          <label className="order-customer-select">Cliente<select ref={customerSelectRef} name="customerId" value={customerId} onChange={(event) => { setCustomerId(event.target.value); markDraftChanged(); }} required><option value="" disabled>Selecciona un cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.client_code} - {customer.trade_name}</option>)}</select></label>
+          <label>Fecha del pedido<input ref={orderDateRef} name="orderDate" type="date" value={orderDate} onChange={(event) => { setOrderDate(event.target.value); markDraftChanged(); }} required /></label>
         <label>Modelo<select ref={modelSelectRef} name="catalogModelId" value={modelId} onChange={(event) => changeModel(event.target.value)} required>{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
-        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} onKeyDown={navigateFabricMatches} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" aria-activedescendant={activeFabricMatch ? `fabric-option-${activeFabricMatch.id}` : undefined} /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setActiveFabricMatchIndex(-1); setMaterialFilter(''); }}>Quitar selección</button> : null}{fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric, index) => <button className={index === activeFabricMatchIndex ? 'fabric-search-result-active' : ''} type="button" id={`fabric-option-${fabric.id}`} key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
+        <div className="fabric-search-field"><label htmlFor="fabric-search">Tejido para {selectedModel?.name || 'este modelo'}</label><input ref={fabricSearchRef} id="fabric-search" value={fabricSearch} onChange={(event) => searchFabric(event.target.value)} onKeyDown={navigateFabricMatches} placeholder="Busca por código o nombre" autoComplete="off" role="combobox" aria-expanded={showFabricMatches && Boolean(fabricSearch.trim())} aria-controls="fabric-search-results" aria-activedescendant={activeFabricMatch ? `fabric-option-${activeFabricMatch.id}` : undefined} /><p className="fabric-search-hint">¿No encuentras el tejido? No selecciones ninguno e indícalo manualmente en las notas del pedido.</p>{selectedFabric ? <button className="fabric-search-clear" type="button" onClick={() => { setFabricIdsByModel((previous) => ({ ...previous, [modelId]: '' })); setFabricSearch(''); setShowFabricMatches(false); setActiveFabricMatchIndex(-1); setMaterialFilter(''); markDraftChanged(); }}>Quitar selección</button> : null}{showFabricMatches && fabricSearch.trim() ? fabricMatches.length ? <div className="fabric-search-results" id="fabric-search-results" role="listbox">{fabricMatches.map((fabric, index) => <button className={index === activeFabricMatchIndex ? 'fabric-search-result-active' : ''} type="button" id={`fabric-option-${fabric.id}`} key={fabric.id} role="option" aria-selected={fabric.id === selectedFabric?.id} onClick={() => selectFabric(fabric)}><strong>{fabric.code}</strong><span>{fabric.name} · {fabric.type === 'P' ? 'Piel' : 'Tela'}</span></button>)}</div> : <p className="fabric-search-warning" role="status">No hay coincidencias para esta búsqueda.</p> : null}</div>
       </div>
 
       <section className="module-selection" aria-labelledby="catalog-selection-title">
@@ -695,8 +783,9 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
         </div>
       </section>
 
-      <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" defaultValue={initialOrder?.notes || ''} /></label>
-      <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span>{initialOrder?.order_attachments?.length ? <small>Los adjuntos actuales se conservarán y el nuevo archivo se añadirá.</small> : null}<input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
+      <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" value={notes} onChange={(event) => { setNotes(event.target.value); markDraftChanged(); }} /></label>
+      {draftAction ? <p className="order-draft-status" role="status">{draftMessage || 'Los cambios se guardarán automáticamente como borrador.'}</p> : null}
+      <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span>{draftAction ? <small>Los adjuntos se cargarán únicamente al enviar el pedido.</small> : null}{initialOrder?.order_attachments?.length ? <small>Los adjuntos actuales se conservarán y el nuevo archivo se añadirá.</small> : null}<input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <input type="hidden" name="modelFabricAssignments" value={JSON.stringify(modelFabricAssignments)} />
       <SubmitOrderButton disabled={!cartEntries.length} label={submitLabel} />

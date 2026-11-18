@@ -187,6 +187,15 @@ export async function createOrder(formData) {
     redirectWithError('No tienes permiso para crear pedidos.');
   }
 
+  const draftId = String(formData.get('draftId') || '').trim();
+  const { data: draft } = draftId && profile.role === 'representante'
+    ? await supabase
+      .from('order_drafts')
+      .select('id, catalog_version_id')
+      .eq('id', draftId)
+      .eq('representative_id', userId)
+      .maybeSingle()
+    : { data: null };
   const customerId = String(formData.get('customerId') || '').trim();
   const orderDate = String(formData.get('orderDate') || '').trim();
   const notes = String(formData.get('notes') || '').trim();
@@ -215,12 +224,14 @@ export async function createOrder(formData) {
     redirectWithError('El cliente seleccionado no esta disponible para tu usuario.');
   }
 
-  const { data: publishedVersion } = await supabase
+  const catalogSource = draft ? createAdminClient() : supabase;
+  const catalogVersionQuery = catalogSource
     .from('catalog_versions')
-    .select('id')
-    .eq('status', 'publicado')
-    .maybeSingle();
-  if (!publishedVersion) redirectWithError('No hay un catalogo publicado disponible.');
+    .select('id');
+  const { data: catalogVersion } = draft
+    ? await catalogVersionQuery.eq('id', draft.catalog_version_id).maybeSingle()
+    : await catalogVersionQuery.eq('status', 'publicado').maybeSingle();
+  if (!catalogVersion) redirectWithError('El catálogo del pedido ya no está disponible.');
 
   const usesItems = requestedLines.every((line) => String(line?.itemId || '').trim());
   const usesLegacy = requestedLines.every((line) => String(line?.variantId || '').trim());
@@ -233,22 +244,22 @@ export async function createOrder(formData) {
   let orderModels;
 
   if (usesItems) {
-    const itemResult = await catalogLinesFromItems(supabase, publishedVersion.id, requestedLines);
+    const itemResult = await catalogLinesFromItems(catalogSource, catalogVersion.id, requestedLines);
     lines = itemResult.lines;
     orderModelId = itemResult.modelIds.length === 1 ? itemResult.modelIds[0] : null;
     orderModelName = itemResult.modelNames.join(' + ');
     orderModels = itemResult.models;
   } else {
-    const { data: catalogModel } = await supabase
+    const { data: catalogModel } = await catalogSource
       .from('catalog_models')
       .select('id, name')
       .eq('id', catalogModelId)
-      .eq('catalog_version_id', publishedVersion.id)
+      .eq('catalog_version_id', catalogVersion.id)
       .maybeSingle();
     if (!catalogModel) {
       redirectWithError('El modelo seleccionado ya no pertenece al catalogo publicado.');
     }
-    lines = await catalogLinesFromLegacy(supabase, catalogModel.id, requestedLines);
+    lines = await catalogLinesFromLegacy(catalogSource, catalogModel.id, requestedLines);
     orderModelId = catalogModel.id;
     orderModelName = catalogModel.name;
     orderModels = [catalogModel];
@@ -258,10 +269,10 @@ export async function createOrder(formData) {
     .map((assignment) => String(assignment?.catalogFabricId || '').trim())
     .filter(Boolean))];
   const { data: selectedFabrics, error: selectedFabricsError } = requestedFabricIds.length
-    ? await supabase
+    ? await catalogSource
       .from('catalog_fabrics')
       .select('id, code, name, fabric_type')
-      .eq('catalog_version_id', publishedVersion.id)
+      .eq('catalog_version_id', catalogVersion.id)
       .in('id', requestedFabricIds)
     : { data: [], error: null };
   if (selectedFabricsError) {
@@ -280,7 +291,7 @@ export async function createOrder(formData) {
     .from('orders')
     .insert({
       representative_id: userId,
-      catalog_version_id: publishedVersion.id,
+      catalog_version_id: catalogVersion.id,
       catalog_model_id: orderModelId,
       model_name: orderModelName,
       catalog_fabric_id: null,
@@ -372,6 +383,16 @@ export async function createOrder(formData) {
   } catch (emailError) {
     console.error('No se pudo enviar el aviso de nuevo pedido:', emailError);
     emailNotice = ' El pedido se ha registrado, pero no se pudo enviar el aviso por email.';
+  }
+
+  if (draft) {
+    const { error: draftDeleteError } = await supabase
+      .from('order_drafts')
+      .delete()
+      .eq('id', draft.id);
+    if (draftDeleteError) {
+      console.error('No se pudo eliminar el borrador enviado:', draftDeleteError);
+    }
   }
 
   revalidatePath('/pedidos');

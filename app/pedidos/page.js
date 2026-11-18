@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { advanceOrderStatus, createOrder, updateOrder } from './actions';
+import { saveOrderDraft } from './draft-actions';
 import NewOrderForm from './new-order-form';
 import { createClient } from '../../lib/supabase/server';
 import { createAdminClient } from '../../lib/supabase/admin';
@@ -149,6 +150,7 @@ export default async function OrdersPage({ searchParams }) {
   const params = (await searchParams) || {};
   const targetOrderId = messageFrom(params.order);
   const editOrderId = messageFrom(params.edit);
+  const draftId = messageFrom(params.draft);
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
@@ -163,7 +165,7 @@ export default async function OrdersPage({ searchParams }) {
 
   const canCreate = ['representante', 'admin'].includes(profile.role);
   const canManage = ['pedidos', 'admin'].includes(profile.role);
-  const [catalog, customersResult, ordersResult] = await Promise.all([
+  const [catalog, customersResult, ordersResult, draftsResult] = await Promise.all([
     canCreate ? publishedCatalog(supabase) : Promise.resolve(null),
     canCreate
       ? supabase
@@ -175,10 +177,24 @@ export default async function OrdersPage({ searchParams }) {
     supabase
       .from('orders')
       .select('id, order_number, customer_id, catalog_version_id, catalog_model_id, client_code, client_name, order_date, model_name, fabric_code, fabric_name, fabric_type, notes, status, created_at, order_lines(line_number, catalog_item_id, catalog_module_variant_id, catalog_item_code, module_name, mechanism, side, quantity), order_model_fabrics(catalog_model_id, catalog_fabric_id, model_name, fabric_code, fabric_name, fabric_type), order_attachments(id, original_name, storage_path)')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }),
+    profile.role === 'representante'
+      ? supabase
+        .from('order_drafts')
+        .select('id, catalog_version_id, payload, created_at, updated_at')
+        .order('updated_at', { ascending: false })
+      : Promise.resolve({ data: [] })
   ]);
   const customers = customersResult.data;
   const orders = ordersResult.data;
+  const drafts = draftsResult.data || [];
+  const resumedDraft = profile.role === 'representante'
+    ? drafts.find((draft) => draft.id === draftId)
+    : null;
+  const draftCatalog = resumedDraft?.catalog_version_id
+    ? await catalogForVersion(createAdminClient(), resumedDraft.catalog_version_id)
+    : null;
+  const formCatalog = resumedDraft ? draftCatalog : catalog;
   const editableOrder = profile.role === 'representante'
     ? (orders || []).find((order) => order.id === editOrderId && order.status === 'pendiente')
     : null;
@@ -214,9 +230,14 @@ export default async function OrdersPage({ searchParams }) {
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p className="catalog-success" role="status">{message}</p> : null}
 
-      {canCreate ? <details className="orders-panel orders-panel-disclosure">
+      {profile.role === 'representante' && drafts.length ? <section className="orders-panel">
+        <div className="orders-list-heading"><div><p className="eyebrow">MIS BORRADORES</p><h2>Continúa un pedido</h2></div><span className="orders-count">{drafts.length}</span></div>
+        <div className="orders-list">{drafts.map((draft) => <article className="order-row" key={draft.id}><div className="order-row-summary"><strong>Borrador</strong><p>{draft.payload?.customerId ? 'Cliente seleccionado' : 'Sin cliente seleccionado'}</p><small>Actualizado: {formatCreatedAt(draft.updated_at)}</small></div><div className="order-row-actions"><Link className="secondary-button" href={`/pedidos?draft=${draft.id}`}>Continuar borrador</Link></div></article>)}</div>
+      </section> : null}
+
+      {canCreate ? <details className="orders-panel orders-panel-disclosure" open={Boolean(resumedDraft)}>
         <summary className="orders-panel-summary"><div><p className="eyebrow">NUEVO PEDIDO</p><h2>Crear pedido</h2><span>Configura y envía un pedido a Pedidos.</span></div><b>Crear pedido</b></summary>
-        <div className="orders-panel-content">{catalog?.models?.length && catalog?.fabrics?.length && customers?.length ? <NewOrderForm models={catalog.models} fabrics={catalog.fabrics} customers={customers} catalogFormat={catalog.format} action={createOrder} /> : <p className="auth-intro">{catalog?.models?.length ? catalog?.fabrics?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'El catálogo publicado no incluye tejidos. Importa una nueva versión con la hoja TEJIDOS.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</div>
+        <div className="orders-panel-content">{formCatalog?.models?.length && formCatalog?.fabrics?.length && customers?.length ? <NewOrderForm key={resumedDraft?.id || 'new-order'} models={formCatalog.models} fabrics={formCatalog.fabrics} customers={customers} catalogFormat={formCatalog.format} action={createOrder} initialDraft={resumedDraft} draftAction={profile.role === 'representante' ? saveOrderDraft : null} catalogVersionId={formCatalog.id} /> : <p className="auth-intro">{formCatalog?.models?.length ? formCatalog?.fabrics?.length ? 'No hay clientes asignados disponibles para crear pedidos.' : 'El catálogo publicado no incluye tejidos. Importa una nueva versión con la hoja TEJIDOS.' : 'No hay un catalogo publicado disponible para crear pedidos.'}</p>}</div>
       </details> : null}
 
       <details className="orders-panel orders-panel-disclosure" open={Boolean(targetOrderId)}>

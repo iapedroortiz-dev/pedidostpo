@@ -62,3 +62,9 @@ test('fabric search keeps the active keyboard result visible', () => {
 
   assert.match(source, /scrollIntoView\(\{ block: 'nearest' \}\)/);
 });
+
+test('selecting a fabric closes the search results', () => {
+  const source = readFileSync(path.resolve(__dirname, '../app/pedidos/new-order-form.js'), 'utf8');
+
+  assert.match(source, /function selectFabric\(fabric\) \{[\s\S]*?setShowFabricMatches\(false\)/);
+});

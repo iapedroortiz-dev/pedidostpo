@@ -1,0 +1,24 @@
+# Private order drafts
+Branch: feat/order-drafts · Delivery: ask-on-risk · Runner: `node --test tests/*.test.cjs` and `npm run build`
+Objective: allow representatives to automatically save and resume private, unsubmitted order drafts.
+
+## Specs
+S1. "un pedido que se ha empezado a preparar, quede como autoguardado para poder retomarlo mas adelante."
+S2. "Pero que no se envie a pedidos, solo que al representante que lo está creando se le quede como pendiente para poder continuar con el más adelante"
+S3. "estado privado Borrador, autoguardarlo mientras el representante completa el formulario, mostrarlo solo a ese representante para retomarlo, y recién al pulsar Enviar pedido a pedidos convertirlo en pendiente y notificar a Pedidos"
+S4. "los adjuntos que tengan que volver a subirlos"
+
+## Tasks
+- T1 · S1-S3 · inline · completed · Add private draft persistence and RLS, preserving draft ownership and separating drafts from orders. Commit: pending.
+- T2 · S1-S3 · inline · completed · Add debounced client autosave, a saved-state indicator, and draft form hydration. Commit: pending.
+- T3 · S2-S4 · inline · completed · List and resume a representative's drafts; submit as a pending order without sending draft notifications or persisting draft attachments. Commit: pending.
+- T4 · S1-S4 · inline · completed · Add public-interface regression coverage and verify the draft flow. Commit: pending.
+
+## Log
+L1. User request: "Ok, se puede hacer que un pedido que se ha empezado a preparar, quede como autoguardado para poder retomarlo mas adelante. Pero que no se envie a pedidos, solo que al representante que lo está creando se le quede como pendiente para poder continuar con el más adelante"
+L2. User decision: "Si, eso es" for private `Borrador` drafts that only become `pendiente` and notify Pedidos on explicit submission.
+L3. User decision: "No, los adjuntos que tengan que volver a subirlos"; draft persistence excludes file attachments.
+L4. Route: inline. No writer trigger applies; this feature is tracked because draft persistence, authorization, and form-resume behavior require multi-step verification.
+L5. Verification: `node --test tests/*.test.cjs` passed 52/52; `npm run build` passed; `git diff --check` passed. Independent verifier initially found an immediate-submit race and a missing active-role requirement on draft SELECT; both received focused regression coverage and the verifier recheck passed structurally.
+L6. Live Supabase proof remains unavailable because migration `supabase/migrations/20261118110000_add_private_order_drafts.sql` has not been applied locally. RLS, real autosave, conversion, deletion, notifications, and attachment handling need representative-flow validation after applying it.
+L7. Risk: item 1 (new persistent draft data and draft-to-order conversion); item 2 (representative-only access via RLS and server authorization).
