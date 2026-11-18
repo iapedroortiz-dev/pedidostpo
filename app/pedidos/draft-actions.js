@@ -79,7 +79,7 @@ export async function saveOrderDraft({ draftId, catalogVersionId, payload }) {
     .select('role, active')
     .eq('id', userId)
     .single();
-  if (!profile?.active || profile.role !== 'representante') {
+  if (!profile?.active || !['representante', 'admin'].includes(profile.role)) {
     throw new Error('No tienes permiso para guardar borradores.');
   }
 

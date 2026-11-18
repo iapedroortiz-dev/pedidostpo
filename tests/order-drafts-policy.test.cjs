@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { test } = require('node:test');
 
 const migrationPath = 'supabase/migrations/20261118110000_add_private_order_drafts.sql';
+const adminDraftMigrationPath = 'supabase/migrations/20261118120000_allow_admin_order_drafts.sql';
 
 test('order drafts are private to their representative', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -24,10 +25,10 @@ test('drafts keep a compact payload instead of creating an operational order', (
   assert.doesNotMatch(sql, /insert into public\.orders/i);
 });
 
-test('only representatives can persist a draft payload', () => {
+test('only active representatives and administrators can persist a draft payload', () => {
   const actions = readFileSync('app/pedidos/draft-actions.js', 'utf8');
 
-  assert.match(actions, /profile\.role !== 'representante'/);
+  assert.match(actions, /!\['representante', 'admin'\]\.includes\(profile\.role\)/);
   assert.match(actions, /from\('order_drafts'\)/);
   assert.match(actions, /\.upsert\(/);
   assert.match(actions, /eq\('status', 'publicado'\)/);
@@ -56,7 +57,7 @@ test('only representative pages load and resume private drafts', () => {
   assert.match(page, /profile\.role === 'representante'/);
   assert.match(page, /from\('order_drafts'\)/);
   assert.match(page, /Continuar borrador/);
-  assert.match(page, /draftAction=\{profile\.role === 'representante' \? saveOrderDraft : null\}/);
+  assert.match(page, /draftAction=\{canUseDrafts \? saveOrderDraft : null\}/);
 });
 
 test('unpersisted draft ID reaches ordinary order validation', async () => {
@@ -104,4 +105,18 @@ test('representatives save drafts with a visible control instead of automatic pe
   assert.match(form, /Guardar borrador/);
   assert.match(form, /Al volver a Pedidos, puedes continuar el borrador desde Mis borradores\./);
   assert.doesNotMatch(form, /setTimeout\(/);
+});
+
+test('active administrators can save and resume only their own drafts', () => {
+  const draftActions = readFileSync('app/pedidos/draft-actions.js', 'utf8');
+  const actions = readFileSync('app/pedidos/actions.js', 'utf8');
+  const page = readFileSync('app/pedidos/page.js', 'utf8');
+  const sql = readFileSync(adminDraftMigrationPath, 'utf8');
+
+  assert.match(draftActions, /\['representante', 'admin'\]\.includes\(profile\.role\)/);
+  assert.match(actions, /draftId && \['representante', 'admin'\]\.includes\(profile\.role\)/);
+  assert.match(page, /const canUseDrafts = \['representante', 'admin'\]\.includes\(profile\.role\)/);
+  assert.match(sql, /drop policy if exists order_drafts_select_own on public\.order_drafts/i);
+  assert.match(sql, /current_app_role\(\)\) in \('representante'::public\.app_role, 'admin'::public\.app_role\)/i);
+  assert.match(sql, /representative_id = \(select auth\.uid\(\)\)/);
 });

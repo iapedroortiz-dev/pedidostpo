@@ -188,7 +188,7 @@ export async function createOrder(formData) {
   }
 
   const draftId = String(formData.get('draftId') || '').trim();
-  const { data: draft } = draftId && profile.role === 'representante'
+  const { data: draft } = draftId && ['representante', 'admin'].includes(profile.role)
     ? await supabase
       .from('order_drafts')
       .select('id, catalog_version_id')
