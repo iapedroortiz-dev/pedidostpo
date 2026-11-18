@@ -9,10 +9,11 @@ S3. "estado privado Borrador, autoguardarlo mientras el representante completa e
 S4. "los adjuntos que tengan que volver a subirlos"
 S5. "si empiezo un pedido y me voy por ejemplo al panel, el pedido que estaba creando no se guarda como borrador, o al menos no se donde verlo"
 S6. "se podría añadir un boton visible para guardar pedido en borrador, en vez de que se haga automaticamente?"
+S7. "como admin debería aparecer tambien"
 
 ## Tasks
 - T1 · S1-S3 · inline · completed · Add private draft persistence and RLS, preserving draft ownership and separating drafts from orders. Commit: 747b062.
-- T2 · S1-S3,S5-S6 · inline · completed · Replace automatic saving with a visible representative-only draft-save control and preserve resume behavior. Commit: f433bb5.
+- T2 · S1-S3,S5-S7 · inline · needs your decision · Allow each active administrator to save and resume only their own private drafts through the same visible control. Commit: d496159.
 - T3 · S2-S4 · inline · completed · List and resume a representative's drafts; submit as a pending order without sending draft notifications or persisting draft attachments. Commit: 747b062.
 - T4 · S1-S4 · inline · completed · Add public-interface regression coverage and verify the draft flow. Commit: 747b062.
 
@@ -29,3 +30,5 @@ L9. User correction: "No, si empiezo un pedido y me voy por ejemplo al panel, el
 L10. Verification: focused tests passed 11/11; full suite passed 55/55; `npm run build` and `git diff --check` passed. Independent verification found that unmount could recreate a submitted draft; submission now clears the pending flush reference, and the limited recheck passed. A rejected submission still discards unsaved latest edits, but that behavior predates this correction.
 L11. User correction: "No, sigue igual, no se podría añadir un boton visible para guardar pedido en borrador, en vez de que se haga automaticamente?"
 L12. Verification: manual draft-save control has focused structural coverage; the full suite passed 54/54, `npm run build` and `git diff --check` passed. Independent verification found stale success feedback when an edit happened during a save; revision-aware acknowledgement fixed it and the limited recheck passed.
+L13. User correction: "Vale, pero como admin debería aparecer tambien"
+L14. Structural verification: policies preserve owner binding and active representative/admin role checks for every operation; focused tests passed 13/13 and full suite passed 57/57. `npm run build` and `git diff --check` passed before the additional static policy regression test. Independent verification could not run live Supabase RLS or browser proof, so administrator cross-user isolation remains pending a user-applied migration and live test.
