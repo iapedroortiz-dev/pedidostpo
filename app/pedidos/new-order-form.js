@@ -361,6 +361,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [draftRevision, setDraftRevision] = useState(0);
   const [draftMessage, setDraftMessage] = useState(initialDraft ? 'Borrador recuperado.' : '');
   const [, startDraftSave] = useTransition();
+  const pendingDraftRef = useRef(null);
   const modelSelectRef = useRef(null);
   const customerSelectRef = useRef(null);
   const orderDateRef = useRef(null);
@@ -430,15 +431,16 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
 
   useEffect(() => {
     if (!draftAction || !draftId || !draftRevision) return;
+    const payload = {
+      customerId,
+      orderDate,
+      notes,
+      modelId,
+      fabricIdsByModel,
+      lines: requestedLines
+    };
+    pendingDraftRef.current = { draftId, catalogVersionId, payload };
     const timeout = setTimeout(() => {
-      const payload = {
-        customerId,
-        orderDate,
-        notes,
-        modelId,
-        fabricIdsByModel,
-        lines: requestedLines
-      };
       setDraftMessage('Guardando borrador…');
       startDraftSave(async () => {
         try {
@@ -452,6 +454,11 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
     }, 800);
     return () => clearTimeout(timeout);
   }, [draftRevision]);
+
+  useEffect(() => () => {
+    const pendingDraft = pendingDraftRef.current;
+    if (pendingDraft) void draftAction(pendingDraft).catch(() => {});
+  }, [draftAction]);
   const compositionByModel = useMemo(() => {
     const groups = new Map();
     compositionOrder.forEach((unit) => {
@@ -614,7 +621,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   return (
-      <form action={action} className="order-form">
+      <form action={action} onSubmit={() => { pendingDraftRef.current = null; }} className="order-form">
         {initialOrder ? <input type="hidden" name="orderId" value={initialOrder.id} /> : null}
         {draftId ? <input type="hidden" name="draftId" value={draftId} /> : null}
         <div className="order-form-grid">
@@ -784,7 +791,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       </section>
 
       <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" value={notes} onChange={(event) => { setNotes(event.target.value); markDraftChanged(); }} /></label>
-      {draftAction ? <p className="order-draft-status" role="status">{draftMessage || 'Los cambios se guardarán automáticamente como borrador.'}</p> : null}
+      {draftAction ? <p className="order-draft-status" role="status">{draftMessage || 'Los cambios se guardarán automáticamente como borrador.'} Al volver a Pedidos, puedes continuar el borrador desde Mis borradores.</p> : null}
       <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span>{draftAction ? <small>Los adjuntos se cargarán únicamente al enviar el pedido.</small> : null}{initialOrder?.order_attachments?.length ? <small>Los adjuntos actuales se conservarán y el nuevo archivo se añadirá.</small> : null}<input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <input type="hidden" name="modelFabricAssignments" value={JSON.stringify(modelFabricAssignments)} />

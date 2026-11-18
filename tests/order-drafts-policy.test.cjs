@@ -96,3 +96,39 @@ test('draft SELECT requires owner and active representative role', () => {
   assert.match(policy, /current_app_role\(\).*representante/s);
   assert.match(roles, /create or replace function public\.current_app_role\(\)[\s\S]*?active\s*=\s*true[\s\S]*?\$\$/);
 });
+
+test('leaving the form flushes a pending draft and explains where to resume it', () => {
+  const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
+
+  assert.match(form, /pendingDraftRef\.current = \{ draftId, catalogVersionId, payload \}/);
+  assert.match(form, /void draftAction\(pendingDraft\)\.catch\(\(\) => \{\}\)/);
+  assert.match(form, /Al volver a Pedidos, puedes continuar el borrador desde Mis borradores\./);
+});
+
+test('submitting the order prevents the unmount cleanup from recreating its draft', () => {
+  const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
+
+  assert.match(form, /<form action=\{action\} onSubmit=\{\(\) => \{ pendingDraftRef\.current = null; \}\} className="order-form">/);
+});
+
+test('submitted drafts stay deleted while ordinary navigation flushes the latest payload', () => {
+  const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
+  const submit = form.match(/<form action=\{action\} onSubmit=\{\(\) => \{([^}]*)\}\}/);
+  const cleanup = form.match(/useEffect\(\(\) => \(\) => \{([\s\S]*?)\}, \[draftAction\]\);/);
+  assert.ok(submit && cleanup);
+
+  const onSubmit = new Function('pendingDraftRef', submit[1]);
+  const unmount = new Function('pendingDraftRef', 'draftAction', cleanup[1]);
+  const latest = { draftId: 'draft-1', payload: { notes: 'latest' } };
+  const saved = [];
+  const save = (draft) => { saved.push(draft); return Promise.resolve(); };
+
+  unmount({ current: latest }, save);
+  assert.deepEqual(saved, [latest]);
+
+  saved.length = 0;
+  const submitted = { current: latest };
+  onSubmit(submitted);
+  unmount(submitted, save);
+  assert.equal(saved.length, 0);
+});
