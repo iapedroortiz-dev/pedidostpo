@@ -358,10 +358,9 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   const [orderDate, setOrderDate] = useState(initialDraft?.payload?.orderDate || initialOrder?.order_date || today());
   const [notes, setNotes] = useState(initialDraft?.payload?.notes || initialOrder?.notes || '');
   const [draftId, setDraftId] = useState(initialDraft?.id || '');
-  const [draftRevision, setDraftRevision] = useState(0);
   const [draftMessage, setDraftMessage] = useState(initialDraft ? 'Borrador recuperado.' : '');
-  const [, startDraftSave] = useTransition();
-  const pendingDraftRef = useRef(null);
+  const [isDraftSaving, startDraftSave] = useTransition();
+  const draftRevisionRef = useRef(0);
   const modelSelectRef = useRef(null);
   const customerSelectRef = useRef(null);
   const orderDateRef = useRef(null);
@@ -425,12 +424,14 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
 
   function markDraftChanged() {
     if (!draftAction) return;
-    setDraftId((currentId) => currentId || crypto.randomUUID());
-    setDraftRevision((revision) => revision + 1);
+    draftRevisionRef.current += 1;
+    setDraftMessage('Cambios sin guardar.');
   }
 
-  useEffect(() => {
-    if (!draftAction || !draftId || !draftRevision) return;
+  function saveDraft() {
+    if (!draftAction) return;
+    const nextDraftId = draftId || crypto.randomUUID();
+    const savedRevision = draftRevisionRef.current;
     const payload = {
       customerId,
       orderDate,
@@ -439,26 +440,17 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       fabricIdsByModel,
       lines: requestedLines
     };
-    pendingDraftRef.current = { draftId, catalogVersionId, payload };
-    const timeout = setTimeout(() => {
-      setDraftMessage('Guardando borrador…');
-      startDraftSave(async () => {
-        try {
-          const savedDraft = await draftAction({ draftId, catalogVersionId, payload });
-          setDraftId(savedDraft.id);
-          setDraftMessage('Borrador guardado.');
-        } catch {
-          setDraftMessage('No se pudo guardar el borrador.');
-        }
-      });
-    }, 800);
-    return () => clearTimeout(timeout);
-  }, [draftRevision]);
-
-  useEffect(() => () => {
-    const pendingDraft = pendingDraftRef.current;
-    if (pendingDraft) void draftAction(pendingDraft).catch(() => {});
-  }, [draftAction]);
+    setDraftMessage('Guardando borrador…');
+    startDraftSave(async () => {
+      try {
+        const savedDraft = await draftAction({ draftId: nextDraftId, catalogVersionId, payload });
+        setDraftId(savedDraft.id);
+        if (draftRevisionRef.current === savedRevision) setDraftMessage('Borrador guardado.');
+      } catch {
+        setDraftMessage('No se pudo guardar el borrador.');
+      }
+    });
+  }
   const compositionByModel = useMemo(() => {
     const groups = new Map();
     compositionOrder.forEach((unit) => {
@@ -621,7 +613,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
   }
 
   return (
-      <form action={action} onSubmit={() => { pendingDraftRef.current = null; }} className="order-form">
+      <form action={action} className="order-form">
         {initialOrder ? <input type="hidden" name="orderId" value={initialOrder.id} /> : null}
         {draftId ? <input type="hidden" name="draftId" value={draftId} /> : null}
         <div className="order-form-grid">
@@ -791,7 +783,7 @@ export default function NewOrderForm({ models, fabrics, customers, action, catal
       </section>
 
       <label>Notas<textarea ref={notesRef} name="notes" maxLength="2000" rows="4" value={notes} onChange={(event) => { setNotes(event.target.value); markDraftChanged(); }} /></label>
-      {draftAction ? <p className="order-draft-status" role="status">{draftMessage || 'Los cambios se guardarán automáticamente como borrador.'} Al volver a Pedidos, puedes continuar el borrador desde Mis borradores.</p> : null}
+      {draftAction ? <div className="order-draft-actions"><p className="order-draft-status" role="status">{draftMessage || 'Los cambios se guardan cuando pulsas Guardar borrador.'} Al volver a Pedidos, puedes continuar el borrador desde Mis borradores.</p><button className="secondary-button" type="button" onClick={saveDraft} disabled={isDraftSaving}>{isDraftSaving ? 'Guardando borrador…' : 'Guardar borrador'}</button></div> : null}
       <label className="order-attachment-field">Adjuntar documento <span>Opcional · PDF, JPG, JPEG o PNG · Máximo 3 MB</span>{draftAction ? <small>Los adjuntos se cargarán únicamente al enviar el pedido.</small> : null}{initialOrder?.order_attachments?.length ? <small>Los adjuntos actuales se conservarán y el nuevo archivo se añadirá.</small> : null}<input name="attachment" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={validateAttachment} />{attachmentError ? <small role="alert">{attachmentError}</small> : null}</label>
       <input type="hidden" name="lines" value={JSON.stringify(requestedLines)} />
       <input type="hidden" name="modelFabricAssignments" value={JSON.stringify(modelFabricAssignments)} />

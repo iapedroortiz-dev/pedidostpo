@@ -43,11 +43,10 @@ test('sending a draft removes it after the operational order is created', () => 
   assert.doesNotMatch(createAction, /if \(draftId && !draft\)/);
 });
 
-test('representative forms autosave data but not attachments', () => {
+test('representative forms expose draft persistence without attachments', () => {
   const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
 
-  assert.match(form, /setTimeout\(/);
-  assert.match(form, /draftAction\(\{ draftId, catalogVersionId, payload \}\)/);
+  assert.match(form, /draftAction\(\{ draftId: nextDraftId, catalogVersionId, payload \}\)/);
   assert.match(form, /Los adjuntos se cargarán únicamente al enviar el pedido\./);
 });
 
@@ -97,38 +96,12 @@ test('draft SELECT requires owner and active representative role', () => {
   assert.match(roles, /create or replace function public\.current_app_role\(\)[\s\S]*?active\s*=\s*true[\s\S]*?\$\$/);
 });
 
-test('leaving the form flushes a pending draft and explains where to resume it', () => {
+test('representatives save drafts with a visible control instead of automatic persistence', () => {
   const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
 
-  assert.match(form, /pendingDraftRef\.current = \{ draftId, catalogVersionId, payload \}/);
-  assert.match(form, /void draftAction\(pendingDraft\)\.catch\(\(\) => \{\}\)/);
+  assert.match(form, /function saveDraft\(\)/);
+  assert.match(form, /onClick=\{saveDraft\} disabled=\{isDraftSaving\}/);
+  assert.match(form, /Guardar borrador/);
   assert.match(form, /Al volver a Pedidos, puedes continuar el borrador desde Mis borradores\./);
-});
-
-test('submitting the order prevents the unmount cleanup from recreating its draft', () => {
-  const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
-
-  assert.match(form, /<form action=\{action\} onSubmit=\{\(\) => \{ pendingDraftRef\.current = null; \}\} className="order-form">/);
-});
-
-test('submitted drafts stay deleted while ordinary navigation flushes the latest payload', () => {
-  const form = readFileSync('app/pedidos/new-order-form.js', 'utf8');
-  const submit = form.match(/<form action=\{action\} onSubmit=\{\(\) => \{([^}]*)\}\}/);
-  const cleanup = form.match(/useEffect\(\(\) => \(\) => \{([\s\S]*?)\}, \[draftAction\]\);/);
-  assert.ok(submit && cleanup);
-
-  const onSubmit = new Function('pendingDraftRef', submit[1]);
-  const unmount = new Function('pendingDraftRef', 'draftAction', cleanup[1]);
-  const latest = { draftId: 'draft-1', payload: { notes: 'latest' } };
-  const saved = [];
-  const save = (draft) => { saved.push(draft); return Promise.resolve(); };
-
-  unmount({ current: latest }, save);
-  assert.deepEqual(saved, [latest]);
-
-  saved.length = 0;
-  const submitted = { current: latest };
-  onSubmit(submitted);
-  unmount(submitted, save);
-  assert.equal(saved.length, 0);
+  assert.doesNotMatch(form, /setTimeout\(/);
 });
