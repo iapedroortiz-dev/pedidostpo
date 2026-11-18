@@ -7,10 +7,11 @@ S1. "un pedido que se ha empezado a preparar, quede como autoguardado para poder
 S2. "Pero que no se envie a pedidos, solo que al representante que lo está creando se le quede como pendiente para poder continuar con el más adelante"
 S3. "estado privado Borrador, autoguardarlo mientras el representante completa el formulario, mostrarlo solo a ese representante para retomarlo, y recién al pulsar Enviar pedido a pedidos convertirlo en pendiente y notificar a Pedidos"
 S4. "los adjuntos que tengan que volver a subirlos"
+S5. "si empiezo un pedido y me voy por ejemplo al panel, el pedido que estaba creando no se guarda como borrador, o al menos no se donde verlo"
 
 ## Tasks
 - T1 · S1-S3 · inline · completed · Add private draft persistence and RLS, preserving draft ownership and separating drafts from orders. Commit: 747b062.
-- T2 · S1-S3 · inline · completed · Add debounced client autosave, a saved-state indicator, and draft form hydration. Commit: 747b062.
+- T2 · S1-S3,S5 · inline · completed · Flush the current draft when leaving the form, keep debounced autosave, and make its resume location clear. Commit: 1e97c3b.
 - T3 · S2-S4 · inline · completed · List and resume a representative's drafts; submit as a pending order without sending draft notifications or persisting draft attachments. Commit: 747b062.
 - T4 · S1-S4 · inline · completed · Add public-interface regression coverage and verify the draft flow. Commit: 747b062.
 
@@ -23,3 +24,5 @@ L5. Verification: `node --test tests/*.test.cjs` passed 52/52; `npm run build` p
 L6. Live Supabase proof remains unavailable because migration `supabase/migrations/20261118110000_add_private_order_drafts.sql` has not been applied locally. RLS, real autosave, conversion, deletion, notifications, and attachment handling need representative-flow validation after applying it.
 L7. Risk: item 1 (new persistent draft data and draft-to-order conversion); item 2 (representative-only access via RLS and server authorization).
 L8. Delivery decision: feature-branch-chain. No PR, push, or merge is authorized.
+L9. User correction: "No, si empiezo un pedido y me voy por ejemplo al panel, el pedido que estaba creando no se guarda como borrador, o al menos no se donde verlo"
+L10. Verification: focused tests passed 11/11; full suite passed 55/55; `npm run build` and `git diff --check` passed. Independent verification found that unmount could recreate a submitted draft; submission now clears the pending flush reference, and the limited recheck passed. A rejected submission still discards unsaved latest edits, but that behavior predates this correction.
